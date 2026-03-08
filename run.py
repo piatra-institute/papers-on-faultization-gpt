@@ -1528,40 +1528,63 @@ def analyze6():
     print()
 
 
-def run_all():
-    experiment1()
-    experiment2()
-    experiment3()
-    experiment4()
-    experiment5()
-    experiment6()
+def run_all(num_reps=3, num_steps=200):
+    experiment1(num_reps=num_reps, num_steps=num_steps)
+    experiment2(num_reps=num_reps, num_steps=num_steps)
+    experiment3(num_reps=num_reps, num_steps=num_steps)
+    experiment4(num_reps=num_reps, num_steps=num_steps)
+    experiment5(num_reps=num_reps, num_steps=num_steps)
+    experiment6(num_reps=num_reps, num_steps=num_steps)
+
+
+def _parse_args():
+    """Parse --num-reps and --num-steps from CLI args."""
+    num_reps = 3
+    num_steps = 200
+    for i, arg in enumerate(sys.argv):
+        if arg == '--num-reps' and i + 1 < len(sys.argv):
+            num_reps = int(sys.argv[i + 1])
+        elif arg == '--num-steps' and i + 1 < len(sys.argv):
+            num_steps = int(sys.argv[i + 1])
+    return num_reps, num_steps
 
 
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'test'
 
-    commands = {
-        'test': test,
-        'baseline': baseline,
-        'trajectory': trajectory,
+    # Commands that accept --num-reps / --num-steps
+    experiment_commands = {
         'experiment1': experiment1,
         'experiment2': experiment2,
         'experiment3': experiment3,
         'experiment4': experiment4,
         'experiment5': experiment5,
         'experiment6': experiment6,
+        'all': run_all,
+    }
+
+    # Commands that don't
+    other_commands = {
+        'test': test,
+        'baseline': baseline,
+        'trajectory': trajectory,
         'analyze1': analyze1,
         'analyze2': analyze2,
         'analyze3': analyze3,
         'analyze4': analyze4,
         'analyze5': analyze5,
         'analyze6': analyze6,
-        'all': run_all,
     }
 
-    if cmd in commands:
-        commands[cmd]()
+    if cmd in experiment_commands:
+        num_reps, num_steps = _parse_args()
+        print(f"Running {cmd} with num_reps={num_reps}, num_steps={num_steps}")
+        experiment_commands[cmd](num_reps=num_reps, num_steps=num_steps)
+    elif cmd in other_commands:
+        other_commands[cmd]()
     else:
+        all_commands = {**experiment_commands, **other_commands}
         print(f"Unknown command: {cmd}")
-        print(f"Available: {', '.join(commands.keys())}")
+        print(f"Available: {', '.join(all_commands.keys())}")
+        print(f"\nExperiment commands accept: --num-reps N --num-steps N")
         sys.exit(1)
