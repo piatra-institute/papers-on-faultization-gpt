@@ -167,8 +167,11 @@ tar -czf "$TARBALL" \
     -C "$REPO_ROOT" \
     run.py \
     experiments.py \
+    experiments_np.py \
     morphogpt.py \
+    morphogpt_np.py \
     perturbations.py \
+    perturbations_np.py \
     metrics.py \
     visualize.py \
     microgpt.py \

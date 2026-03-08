@@ -1,8 +1,10 @@
 # /// script
-# dependencies = ["matplotlib"]
+# dependencies = ["matplotlib", "numpy"]
 # ///
 """
 MorphoGPT — Quick Run Script
+
+Uses the numpy backend (morphogpt_np) for ~1000x speedup over scalar autograd.
 
 Usage:
     uv run run.py test           # Quick smoke test (20 steps, n_layer=1)
@@ -32,23 +34,29 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 def test():
     """Quick smoke test: 20 steps, n_layer=1."""
-    from morphogpt import (
+    from morphogpt_np import (
         make_config, init_state_dict, load_dataset, train, generate,
         TrainConfig, Hooks, Probe
     )
+    import time
+    import numpy as np
 
-    print("=== SMOKE TEST ===")
+    print("=== SMOKE TEST (numpy backend) ===")
     docs, uchars, BOS, vocab_size = load_dataset()
     print(f"docs: {len(docs)}, vocab: {vocab_size}")
 
     config = make_config(n_layer=1, n_embd=16, n_head=4, vocab_size=vocab_size)
     state_dict, params = init_state_dict(config, seed=42)
-    print(f"params: {len(params)}")
+    n_params = sum(v.size for v in state_dict.values())
+    print(f"params: {n_params}")
 
     tc = TrainConfig(num_steps=20, print_every=5, detail_level='summary')
+    t0 = time.time()
     probe = train(state_dict, params, config, tc, docs, uchars, BOS)
+    elapsed = time.time() - t0
     print(f"Final loss: {probe.losses[-1][1]:.4f}")
     print(f"Steps with trajectory data: {len(probe.step_data)}")
+    print(f"Training time: {elapsed:.2f}s")
 
     samples = generate(state_dict, config, uchars, BOS,
                        num_samples=5, temperature=0.5, seed=123)
@@ -63,7 +71,7 @@ def test():
     print(f"  registered: {hooks.list_hooks()}")
 
     # Test with a freeze hook
-    from perturbations import make_zero_head, freeze_random_heads
+    from perturbations_np import make_zero_head, freeze_random_heads
     hooks2 = Hooks()
     frozen = freeze_random_heads(hooks2, config, num_heads=2)
     print(f"  frozen heads: {frozen}")
@@ -89,7 +97,7 @@ def test():
 
 def baseline():
     """Train baseline model — trajectory-focused report."""
-    from morphogpt import (
+    from morphogpt_np import (
         make_config, init_state_dict, load_dataset, train, generate,
         TrainConfig, Probe
     )
@@ -242,11 +250,11 @@ def trajectory():
     Run baseline vs damaged variant, compare trajectory shapes,
     report divergence points and rerouting.
     """
-    from morphogpt import (
+    from morphogpt_np import (
         make_config, init_state_dict, load_dataset, train,
         TrainConfig, Hooks, Probe
     )
-    from perturbations import freeze_random_heads
+    from perturbations_np import freeze_random_heads
     from metrics import (
         trajectory_envelope, compare_trajectory_envelopes,
         detect_phases, compute_delayed_gratification,
@@ -356,7 +364,7 @@ def trajectory():
 
 def experiment1(num_reps=3, num_steps=200):
     """Head freezing robustness curve."""
-    from experiments import experiment_head_freezing, save_results
+    from experiments_np import experiment_head_freezing, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_head_freezing(num_reps=num_reps, num_steps=num_steps)
     save_results(results['all_results'], 'results/head_freezing.json')
@@ -364,7 +372,7 @@ def experiment1(num_reps=3, num_steps=200):
 
 def experiment2(num_reps=3, num_steps=200):
     """Cell-view GPT."""
-    from experiments import experiment_cell_view, save_results
+    from experiments_np import experiment_cell_view, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_cell_view(num_reps=num_reps, num_steps=num_steps)
     save_results(results, 'results/cell_view.json')
@@ -372,7 +380,7 @@ def experiment2(num_reps=3, num_steps=200):
 
 def experiment3(num_reps=3, num_steps=200):
     """Gradient degradation."""
-    from experiments import experiment_gradient_degradation, save_results
+    from experiments_np import experiment_gradient_degradation, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_gradient_degradation(num_reps=num_reps, num_steps=num_steps)
     save_results(results, 'results/gradient_degradation.json')
@@ -380,7 +388,7 @@ def experiment3(num_reps=3, num_steps=200):
 
 def experiment4(num_reps=3, num_steps=200):
     """Vision radius sweep."""
-    from experiments import experiment_vision_radius, save_results
+    from experiments_np import experiment_vision_radius, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_vision_radius(num_reps=num_reps, num_steps=num_steps)
     save_results(results['all_results'], 'results/vision_radius.json')
@@ -388,7 +396,7 @@ def experiment4(num_reps=3, num_steps=200):
 
 def experiment5(num_reps=3, num_steps=200):
     """Communication topology."""
-    from experiments import experiment_communication_topology, save_results
+    from experiments_np import experiment_communication_topology, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_communication_topology(num_reps=num_reps, num_steps=num_steps)
     save_results(results, 'results/communication_topology.json')
@@ -396,7 +404,7 @@ def experiment5(num_reps=3, num_steps=200):
 
 def experiment6(num_reps=3, num_steps=200):
     """Courage vs. caution."""
-    from experiments import experiment_courage_caution, save_results
+    from experiments_np import experiment_courage_caution, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_courage_caution(num_reps=num_reps, num_steps=num_steps)
     save_results(results, 'results/courage_caution.json')
