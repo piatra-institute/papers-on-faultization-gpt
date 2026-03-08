@@ -22,8 +22,8 @@ echo ""
 
 mkdir -p "$REMOTE_DIR/output"
 
-# Run experiments
-python run.py "$EXPERIMENTS" \
+# Run experiments (unbuffered so tee/tail see output immediately)
+python -u run.py "$EXPERIMENTS" \
     --num-reps "$NUM_REPS" \
     --num-steps "$NUM_STEPS" \
     2>&1 | tee "$REMOTE_DIR/output/run.log"
