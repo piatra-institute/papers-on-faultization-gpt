@@ -6,6 +6,7 @@ set -euo pipefail
 REMOTE_DIR="/workspace/morphogpt"
 export PATH="$HOME/.local/bin:$PATH"
 cd "$REMOTE_DIR"
+source .venv/bin/activate
 
 # Read config from env (set by launcher)
 NUM_REPS="${MORPHOGPT_NUM_REPS:-30}"
@@ -21,8 +22,8 @@ echo ""
 
 mkdir -p "$REMOTE_DIR/output"
 
-# Run with uv
-uv run run.py "$EXPERIMENTS" \
+# Run experiments
+python run.py "$EXPERIMENTS" \
     --num-reps "$NUM_REPS" \
     --num-steps "$NUM_STEPS" \
     2>&1 | tee "$REMOTE_DIR/output/run.log"

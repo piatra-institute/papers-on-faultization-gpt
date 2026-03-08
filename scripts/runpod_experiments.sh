@@ -172,7 +172,6 @@ tar -czf "$TARBALL" \
     metrics.py \
     visualize.py \
     microgpt.py \
-    pyproject.toml \
     scripts/runpod_run.sh
 echo "   Tarball: $(du -h "$TARBALL" | cut -f1)"
 
@@ -220,8 +219,10 @@ fi
 # -- Verify --
 echo ""
 echo "--- Verifying installation ---"
-uv run python -c "import numpy; print(f'numpy {numpy.__version__} OK')"
-uv run python -c "from morphogpt import load_dataset; docs, *_ = load_dataset(); print(f'Dataset: {len(docs)} docs')"
+source "$REMOTE_DIR/.venv/bin/activate"
+python -c "import numpy; print(f'numpy {numpy.__version__} OK')"
+mkdir -p "$REMOTE_DIR/data" "$REMOTE_DIR/results"
+python -c "from morphogpt import load_dataset; docs, *_ = load_dataset(); print(f'Dataset: {len(docs)} docs')"
 
 echo ""
 echo "--- Setup complete ---"
