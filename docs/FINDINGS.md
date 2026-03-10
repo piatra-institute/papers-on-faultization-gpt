@@ -9,11 +9,11 @@ Morphogenetic perturbation analysis of a minimal GPT, applying Levin's developme
 
 **Task:** Character-level name generation, trained on a names dataset.
 
-**Protocol:** 200 training steps, 3 independent runs per condition (seeds 42, 43, 44), loss and head-level metrics recorded at every step.
+**Protocol:** 200 training steps, 30 independent runs per condition (seeds 42–71), loss and head-level metrics recorded at every step.
 
-**Statistical analysis:** All comparisons use paired $t$-tests with runs matched by seed across conditions ($n = 3$, $df = 2$). We report $p < 0.05$ as statistically significant and $0.05 < p < 0.10$ as marginal. With only 3 paired observations, power is low — the tests detect large effects but many reported mean differences are not statistically significant. We distinguish between *statistically supported* findings and *observational* patterns throughout.
+**Statistical analysis:** All comparisons use paired $t$-tests with runs matched by seed across conditions ($n = 30$, $df = 29$). We report $p < 0.05$ as statistically significant and $0.05 < p < 0.10$ as marginal. With 30 paired observations, the tests have adequate power to detect moderate effects. We distinguish between *statistically supported* findings and *observational* patterns throughout. Effect sizes are reported as Cohen's $d$.
 
-**Key metric — Delayed Gratification (DG) Index:** Measures how much the loss trajectory dips below its final value during training. A high DG means the system explored better configurations early but "gave them up" — the signature of rerouting through alternative pathways after perturbation, analogous to Levin's developmental competency metric in biological systems.
+**Key metric — Delayed Gratification (DG) Index:** Measures how much the loss trajectory dips below its final value during training. A high DG means the system explored better configurations early but "gave them up." At $n = 30$, DG shows no systematic response to perturbation (see Section 8), contrary to the $n = 3$ pilot data. The DG metric captures a real property of loss trajectories but does not scale with perturbation severity.
 
 
 ## 2. Experiment 1: Head Freezing
@@ -22,30 +22,25 @@ Morphogenetic perturbation analysis of a minimal GPT, applying Levin's developme
 
 ### Results
 
-| Frozen Heads | Final Loss | DG Index |
-|:---:|:---:|:---:|
-| 0 | 2.479 | 0.299 |
-| 1 | 2.477 | 0.291 |
-| 2 | 2.475 | 0.340 |
-| 4 | 2.482 | 0.331 |
-| 8 | 2.463 | 0.388 |
-| 12 | 2.426 | 0.485 |
-| 16 | 2.409 | 0.502 |
-
-![Robustness curve](../results/exp1_robustness_curve.png)
+| Frozen Heads | Final Loss | Std | Mean Loss | DG Index |
+|:---:|:---:|:---:|:---:|:---:|
+| 0 | 2.469 | 0.340 | 2.639 | 0.571 |
+| 1 | 2.472 | 0.343 | 2.639 | 0.572 |
+| 2 | 2.471 | 0.343 | 2.638 | 0.575 |
+| 4 | 2.473 | 0.346 | 2.638 | 0.509 |
+| 8 | 2.481 | 0.337 | 2.636 | 0.528 |
+| 12 | 2.479 | 0.347 | 2.635 | 0.475 |
+| 16 | 2.479 | 0.348 | 2.635 | 0.512 |
 
 ### Findings
 
-**Loss improves significantly when 8+ heads are frozen.** Freezing 8 heads ($t = -10.46$, $p = 0.009$) and 12 heads ($t = -13.43$, $p = 0.006$) produce statistically significant improvements in final loss. Freezing 16 heads is marginally significant ($p = 0.055$). However, freezing 1, 2, or 4 heads shows no significant change from baseline ($p > 0.85$). The improvement emerges at a threshold around half the total heads, rather than increasing monotonically at each step — the trend in means is visible but the per-step differences for low freezing levels are indistinguishable from noise at $n = 3$. The explanation for the high-freezing improvement is that MLPs carry the bulk of learning, and frozen attention heads reduce gradient interference — random initialized heads that cannot update act as fixed projections rather than competing learners.
+**Final loss does not improve with freezing.** No freezing level produces a statistically significant improvement in final loss. Freeze 8 is marginally worse ($p = 0.064$); all others are non-significant ($p > 0.18$). The monotonic improvement trend reported at $n = 3$ does not replicate (Spearman $\rho = 0.013$, $p = 0.85$). The $n = 3$ finding that "damage improves" was a sampling artifact.
 
-**DG nearly doubles.** The DG index rises from 0.299 to 0.502 (+68%), the clearest rerouting signature across all experiments. The system finds good loss values early (via MLPs) but the frozen heads prevent it from retaining those configurations, producing the characteristic dip-then-rise trajectory.
+**Mean trajectory loss shows a tiny improvement.** Freezing 4+ heads produces a statistically significant reduction in mean loss: freeze 4 ($p = 0.012$, $d = -0.49$), freeze 8 ($p < 0.001$, $d = -1.03$), freeze 12 ($p < 0.001$, $d = -1.13$), freeze 16 ($p < 0.001$, $d = -0.96$). However, the effects are tiny: -0.1% to -0.2% of mean loss. This suggests frozen heads reduce gradient noise during the training trajectory without affecting the final convergence point.
 
-**Trajectory shape is preserved.** Cross-condition trajectory correlations exceed 0.95 at all freezing levels. The system follows the same learning arc regardless of how many heads are disabled — it reaches the same place through different internal configurations.
+**DG does not increase with freezing.** Contrary to the $n = 3$ results, DG does not scale with the number of frozen heads. Freeze 12 actually *decreases* DG significantly ($p = 0.034$, $d = -0.41$). All other levels are non-significant. The claimed "rerouting proportional to damage" narrative is not supported.
 
-**DG-damage regression shows positive slope.** More freezing produces more DG, consistent with Levin's prediction that damage triggers compensatory rerouting proportional to the perturbation magnitude.
-
-![Training trajectories](../results/exp1_trajectories.png)
-![DG episodes](../results/exp1_dg_episodes.png)
+**Trajectory shape is preserved.** Cross-condition trajectory correlations exceed 0.95 at all freezing levels. The system follows the same learning arc regardless of how many heads are disabled.
 
 
 ## 3. Experiment 2: Cell-View GPT
@@ -56,30 +51,16 @@ Morphogenetic perturbation analysis of a minimal GPT, applying Levin's developme
 
 | Condition | Mean Loss | Final Loss | DG Index |
 |:---:|:---:|:---:|:---:|
-| baseline | 2.635 | 2.479 | 0.299 |
-| cell_view | 2.698 | 2.627 | 0.375 |
-
-Performance delta: **+2.4% mean loss** (+0.063).
-
-DG delta: **+25.5%** (+0.076).
-
-Training time: **~3.5x faster** — stop-gradient eliminates the backward pass through the full computational graph.
-
-![Baseline vs cell-view comparison](../results/exp2_comparison.png)
+| baseline | 2.639 | 2.469 | 0.571 |
+| cell_view | 2.687 | 2.590 | 0.507 |
 
 ### Findings
 
-**Local-only learning is viable.** A 2.4% performance cost for eliminating all inter-layer gradient communication is remarkably small. Each layer learns from its own loss signal and still contributes to coherent sequence generation.
+**Local-only learning degrades performance significantly.** Cell-view increases final loss by +4.9% ($p < 0.001$, $d = +1.16$) and mean loss by +1.8% ($p < 0.001$, $d = +3.31$). While the degradation is significant and non-trivial, the system still learns effectively — eliminating all inter-layer gradient communication does not break the architecture.
 
-**Different head specialization emerges.** Under cell-view training, Layer 3 heads dominate — they specialize more aggressively when deprived of upstream gradient refinement. Inner layers show more uniform entropy distributions, while the final layer concentrates its attention patterns.
+**DG does not increase under cell-view.** The $n = 3$ claim of +25.5% DG elevation is not replicated ($p = 0.34$). Cell-view DG (0.507) is not significantly different from baseline (0.571).
 
-**Lower variance across runs (observational).** Cell-view training appears to produce more consistent results between independent runs. However, variance comparisons at $n = 3$ are unreliable — this pattern is observational and cannot be confirmed statistically at this sample size.
-
-**DG increases under local learning.** The +25.5% DG elevation indicates that even without inter-layer coordination, the system exhibits rerouting behavior — each layer independently discovers and abandons configurations during training.
-
-![Head entropy comparison](../results/exp2_head_entropy.png)
-![Training trajectories](../results/exp2_trajectories.png)
-![DG episodes](../results/exp2_dg_episodes.png)
+**Head specialization patterns shift.** Under cell-view training, final-layer heads tend to specialize more aggressively when deprived of upstream gradient refinement. This is an observational finding from head entropy analysis.
 
 
 ## 4. Experiment 3: Gradient Degradation
@@ -88,239 +69,191 @@ Training time: **~3.5x faster** — stop-gradient eliminates the backward pass t
 
 ### Results
 
-| Method | Final Loss Delta | DG Index |
-|:---:|:---:|:---:|
-| baseline | — | 0.299 |
-| noisy (σ=0.01) | -0.028 | 0.412 |
-| sign_only | +0.011 | 0.322 |
-| quantized (3-bit) | +0.042 | 0.425 |
-| noisy (σ=0.1) | +0.110 | 0.533 |
-
-![Method comparison](../results/exp3_method_comparison.png)
+| Method | Final Loss | Δ% | $p$ (final) | Mean Loss | $p$ (mean) |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| baseline | 2.469 | — | — | 2.639 | — |
+| noisy (σ=0.01) | 2.477 | +0.3% | 0.525 | 2.639 | 0.978 |
+| noisy (σ=0.1) | 2.530 | +2.5% | 0.021* | 2.698 | <0.001*** |
+| sign_only | 2.582 | +4.6% | 0.004** | 2.742 | <0.001*** |
+| quantized (3-bit) | 2.543 | +3.0% | 0.019* | 2.703 | <0.001*** |
 
 ### Findings
 
-**No gradient degradation method produces a statistically significant change from baseline.** Paired $t$-tests show $p > 0.26$ for all four methods: sign-only ($p = 0.860$), quantized ($p = 0.425$), noisy $\sigma = 0.1$ ($p = 0.265$), and noisy $\sigma = 0.01$ ($p = 0.701$). The mean effects are suggestive — sign-only at +0.4%, quantized at +1.7%, noisy $\sigma = 0.1$ at +4.4%, and noisy $\sigma = 0.01$ at -1.1% — but all fall within the confidence intervals at $n = 3$. This null result is itself informative: the architecture tolerates severe gradient corruption without measurable degradation.
+**Small noise is tolerated; severe corruption degrades.** At $n = 30$, the "null result" reported at $n = 3$ was due to insufficient power. Sign-only gradients significantly degrade final loss by +4.6% ($p = 0.004$, $d = +0.56$), quantized gradients by +3.0% ($p = 0.019$, $d = +0.45$), and noisy $\sigma = 0.1$ by +2.5% ($p = 0.021$, $d = +0.44$). Only small noise ($\sigma = 0.01$) produces no significant change ($p = 0.525$).
 
-**Sign-only gradients produce no detectable degradation.** Discarding all magnitude information and keeping only gradient signs produces a final loss delta of just +0.011, not statistically significant ($p = 0.860$). This is consistent with SignSGD findings in the literature. However, the wide confidence interval means we cannot claim precision — the true effect could range from moderate improvement to moderate degradation.
+**Mean loss effects are highly significant.** For the training trajectory, sign-only worsens mean loss by +3.9% ($p < 0.001$, $d = +6.13$), quantized by +2.4% ($p < 0.001$, $d = +4.54$), and noisy $\sigma = 0.1$ by +2.2% ($p < 0.001$, $d = +3.79$). The large Cohen's $d$ values (>3) indicate massive effects on the training trajectory.
 
-**The "noise helps" effect is not statistically supported.** At $\sigma = 0.01$, the mean final loss delta is -0.028, but the paired differences go in opposite directions across runs ($p = 0.701$). We cannot claim that noise improves performance — the effect is indistinguishable from sampling variability.
+**The "noise helps" effect is not supported.** Noisy $\sigma = 0.01$ shows no significant effect on either final loss ($p = 0.525$) or mean loss ($p = 0.978$). The $n = 3$ suggestion that small noise improves performance was sampling noise.
 
-**All degradation methods elevate DG.** Every form of gradient corruption increases the DG index above baseline:
-- Noisy σ=0.01: +38% (0.412)
-- Sign-only: +8% (0.322)
-- Quantized 3-bit: +42% (0.425)
-- Noisy σ=0.1: +78% (0.533)
-
-The noisiest condition (σ=0.1) produces the highest DG of the first three experiments, indicating more pronounced rerouting under stronger perturbation.
-
-**Architecture constrains the solution space.** The residual stream, attention patterns, and MLP structure collectively define a narrow enough solution manifold that even crude gradient approximations navigate it successfully. The architecture does the heavy lifting; the optimizer just needs a rough direction.
-
-![Training trajectories](../results/exp3_trajectories.png)
-![Trajectory divergence](../results/exp3_trajectory_divergence.png)
-![DG episodes](../results/exp3_dg_episodes.png)
+**Architecture constrains the solution space.** Despite the degradation, the worst-performing method (sign-only) still achieves loss within 5% of baseline. The residual stream, attention patterns, and MLP structure collectively define a narrow enough solution manifold that even crude gradient approximations navigate it, albeit with measurable cost.
 
 
 ## 5. Experiment 4: Vision Radius Sweep
 
-**Analog:** Kofman, Campitelli & Levin's (2025) vision radius experiment in distributed chess, where each piece perceives only squares within radius R. Their central result: intermediate R4 outperforms both blind (R0) and omniscient (R7) pieces. We translate this by restricting each attention head's context window, limiting how far back in the sequence a head can attend.
+**Analog:** Kofman, Campitelli & Levin's (2025) vision radius experiment in distributed chess, where each piece perceives only squares within radius R. We translate this by restricting each attention head's context window.
 
 ### Results
 
-| Window | Mean Loss | Std | Mean DG |
-|:---:|:---:|:---:|:---:|
-| Baseline (full) | 2.6349 | 0.027 | 0.299 |
-| 1 | 2.6500 | 0.029 | 0.435 |
-| 2 | 2.6405 | 0.031 | 0.389 |
-| 4 | 2.6313 | 0.028 | 0.249 |
-| 8 | 2.6328 | 0.027 | 0.499 |
-| 16 | 2.6349 | 0.027 | 0.299 |
-
-![Vision radius sweep](../results/exp4_vision_radius.png)
+| Window | Final Loss | $p$ (final) | Mean Loss | $p$ (mean) |
+|:---:|:---:|:---:|:---:|:---:|
+| Baseline (full) | 2.469 | — | 2.639 | — |
+| 1 | 2.486 | 0.155 | 2.650 | <0.001*** |
+| 2 | 2.485 | 0.136 | 2.640 | 0.185 |
+| 4 | 2.475 | 0.524 | 2.636 | 0.004** |
+| 8 | 2.471 | 0.478 | 2.638 | <0.001*** |
+| 16 | 2.469 | 1.000 | 2.639 | 1.000 |
 
 ### Findings
 
-**Only window=8 produces a statistically significant improvement.** Paired $t$-tests show window=8 improves mean loss ($t = -5.00$, $p = 0.038$), but the effect is tiny (-0.002). Window=4's mean loss improvement is not significant ($p = 0.17$), and window=2's final loss improvement — the previously headline claim of -1.4% — is not significant ($p = 0.318$). Window=1 marginally worsens mean loss ($p = 0.078$). The trend is suggestive of the information bottleneck hypothesis but underpowered at $n = 3$.
+**No window size significantly changes final loss.** All paired $t$-tests on final loss are non-significant ($p > 0.13$). The previously reported -1.4% improvement for window=2 does not replicate.
 
-**Window=16 is identical to baseline.** The full-context window (16 = block size) reproduces baseline values exactly (mean loss 2.6349, DG 0.299), confirming that the windowing implementation introduces no artifacts. This is the sanity check.
+**Tiny mean-loss effects exist for some windows.** Window=1 significantly worsens mean loss (+0.4%, $p < 0.001$, $d = +2.49$). Window=4 significantly improves mean loss (-0.1%, $p = 0.004$, $d = -0.57$) and window=8 improves it (-0.03%, $p < 0.001$, $d = -0.68$). However, these effects are so small (<0.5%) as to be practically negligible.
 
-**Window=8 produces the highest DG.** At 0.499 (+67% over baseline), window=8 shows the most rerouting. Moderate restriction forces the system to explore alternative configurations most actively — neither so constrained that exploration is limited (window=1) nor so unrestricted that the default path suffices (full attention).
+**Window=16 is identical to baseline.** Full-context window (16 = block size) reproduces baseline values exactly, confirming the implementation introduces no artifacts.
 
-**Trajectory shape is preserved across window sizes.** Learning curves maintain similar shapes regardless of window size. The system navigates toward the same performance region through different internal routes, as in Experiments 1-3.
+**The information bottleneck hypothesis is not supported.** The chess paper's finding that intermediate vision radius outperforms omniscience does not translate to meaningful attention windowing effects. The final-loss results are all non-significant, and the mean-loss effects are negligibly small.
 
 
 ## 6. Experiment 5: Communication Topology
 
-**Analog:** The chess paper's relay chains, where pieces transmit threat information beyond their individual vision radius, expanding the collective's "cognitive light cone." We create a spectrum of gradient flow topologies between full backpropagation and complete isolation by scaling the gradient pass fraction at layer boundaries.
+**Analog:** The chess paper's relay chains, where pieces transmit threat information beyond their individual vision radius. We create a spectrum of gradient flow topologies between full backpropagation and complete isolation.
 
 ### Results
 
-| Topology | Fraction | Mean Loss | Mean DG |
-|:---:|:---:|:---:|:---:|
-| Full | 1.00 | 2.6349 | 0.299 |
-| Heavy | 0.75 | 2.6355 | 0.276 |
-| Half | 0.50 | 2.6354 | 0.277 |
-| Light | 0.25 | 2.6343 | 0.316 |
-| Cell-view | 0.00 | 2.6978 | 0.375 |
-
-![Communication topology](../results/exp5_communication_topology.png)
+| Topology | Fraction | Final Loss | $p$ (final) | Mean Loss | $p$ (mean) |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| Full | 1.00 | 2.469 | — | 2.639 | — |
+| Heavy | 0.75 | 2.472 | 0.024* | 2.639 | 0.553 |
+| Half | 0.50 | 2.470 | 0.551 | 2.639 | 0.100† |
+| Light | 0.25 | 2.471 | 0.426 | 2.639 | 0.303 |
+| Cell-view | 0.00 | 2.590 | <0.001*** | 2.687 | <0.001*** |
 
 ### Findings
 
-**No partial-flow condition differs significantly from full backpropagation.** Paired $t$-tests show heavy ($p = 0.28$), half ($p = 0.39$), and light ($p = 0.61$) are all statistically indistinguishable from the full-backpropagation baseline. The previously claimed "U-shape" and the claim that light (25%) outperforms full are not supported — the mean differences (e.g., light at -0.0006 mean loss) are pure noise at $n = 3$.
+**Partial gradient flow is largely tolerated.** Half (50%) and light (25%) gradient flow produce no significant change in either final or mean loss. Heavy (75%) shows a small but significant final-loss increase ($p = 0.024$, $d = +0.44$), though the effect is tiny (+0.1%).
 
-**Only cell-view is significantly different.** Cell-view degrades mean loss by +2.4% ($t = 6.74$, $p = 0.021$), confirming that complete elimination of inter-layer gradient flow has a real (though modest) cost.
+**Only complete isolation degrades meaningfully.** Cell-view (0% gradient flow) degrades final loss by +4.9% ($p < 0.001$, $d = +1.16$) and mean loss by +1.8% ($p < 0.001$, $d = +3.31$).
 
-**Cell-view shows uniquely elevated DG with positive goal alignment.** At 0.375 (+25% over baseline), cell-view has the highest DG in this experiment. Complete isolation forces the most rerouting — but at a performance cost. The intermediate topologies achieve similar loss to full backpropagation with similar DG levels.
-
-**The tolerance finding is the real result.** While partial communication does not *improve* over full backpropagation, the fact that reducing gradient flow to 25% produces no detectable degradation is itself noteworthy — the system tolerates severe communication restriction without measurable loss.
+**The U-shape claim is not supported.** No partial-flow condition outperforms full backpropagation. The system tolerates reduced gradient flow but does not benefit from it.
 
 
 ## 7. Experiment 6: Courage vs. Caution
 
-**Analog:** Kofman et al.'s finding that "cautious position, courageous moves" is the optimal chess strategy — conservative evaluation combined with aggressive action. We translate this into a 2×2 matrix crossing forward-pass stability with gradient boldness:
+**Analog:** Kofman et al.'s finding that "cautious position, courageous moves" is the optimal chess strategy. We translate this into a 2×2 matrix:
 
 | | Cautious Gradients | Courageous Gradients |
 |:---:|:---:|:---:|
 | **Cautious Forward** | (a) Tiny noise (σ=0.001) | (b) Sign-only gradients |
 | **Courageous Forward** | (c) Dropout (p=0.1) | (d) Noisy gradients (σ=0.1) |
 
-The chess paper predicts (b) wins: stable perception with bold moves.
-
 ### Results
 
-| Condition | Mean Loss | Std | Mean DG |
-|:---:|:---:|:---:|:---:|
-| Baseline | 2.6349 | 0.027 | 0.299 |
-| Cautious/Cautious (a) | 2.6379 | 0.028 | 0.276 |
-| Cautious/Courageous (b) | 2.7248 | 0.022 | 0.322 |
-| Courageous/Cautious (c) | 2.6376 | 0.028 | 0.517 |
-| Courageous/Courageous (d) | 2.6910 | 0.028 | 0.604 |
-
-![Courage vs. caution](../results/exp6_courage_caution.png)
+| Condition | Final Loss | $p$ (final) | Mean Loss | $p$ (mean) |
+|:---:|:---:|:---:|:---:|:---:|
+| Baseline | 2.469 | — | 2.639 | — |
+| Cautious/Cautious (a) | 2.484 | 0.017* | 2.639 | 0.799 |
+| Cautious/Courageous (b) | 2.582 | 0.004** | 2.742 | <0.001*** |
+| Courageous/Cautious (c) | 2.481 | 0.029* | 2.641 | 0.010** |
+| Courageous/Courageous (d) | 2.509 | 0.044* | 2.697 | <0.001*** |
 
 ### Findings
 
-**Sign-only gradients degrade significantly more than dropout.** Sign-only (b) significantly worsens mean loss by +3.4% ($t = 15.85$, $p = 0.004$). Dropout (c) produces a marginal degradation ($t = 3.66$, $p = 0.064$) — the effect is small and borderline. The gap between (b) and (c) is genuine: sign-only hurts much more than dropout. However, neither condition *improves* over baseline — the result is "sign-only hurts more than dropout," not "forward noise helps."
+**All perturbation conditions significantly degrade final loss.** Every condition performs worse than baseline, with sign-only (b) showing the largest degradation (+4.6%, $p = 0.004$, $d = +0.56$).
 
-**The chess prediction is inverted.** Condition (c) courageous/cautious outperforms (b) cautious/courageous by a wide margin (mean loss 2.638 vs 2.725, +3.3% gap). The predicted winner is the worst-performing non-baseline condition. In transformers, forward-pass noise with careful gradients beats stable forward passes with bold gradients — the opposite of what works in chess.
+**Sign-only degrades much more than dropout.** The paired comparison between sign-only (b) and dropout (c) is highly significant for mean loss ($p < 0.001$, $d = +6.00$) and significant for final loss ($p = 0.010$, $d = +0.51$). Sign-only worsens mean loss by +3.8% relative to dropout.
 
-**Noise everywhere is worst by final loss.** Condition (d) produces the highest final loss (2.538, +2.4% over baseline). Forward noise and gradient noise compound rather than cancel.
+**The chess prediction is inverted.** Condition (c) courageous/cautious (dropout with careful gradients) significantly outperforms (b) cautious/courageous (sign-only with stable forward pass). The chess paper's predicted winner is the worst non-baseline condition for mean loss.
 
-**DG scales with total perturbation magnitude.** The DG ordering is d (0.604) > c (0.517) > b (0.322) > baseline (0.299) > a (0.276). Conditions with more total perturbation produce more rerouting, regardless of where the perturbation is applied. DG=0.604 is the highest value observed across all six experiments, surpassing the previous maximum (noisy σ=0.1, DG=0.533 in Exp 3) by 13%.
-
-**The substrate-dependent interpretation.** The chess inversion is not a failure of the analogy — it reveals a substrate difference. Chess pieces operate in a discrete, irreversible action space: a bad move cannot be undone, so stable perception (cautious position) is essential. Transformers operate in a continuous, differentiable optimization landscape: forward noise acts as regularization (exploration of the loss surface), while gradient precision is needed to navigate fine-grained curvature. The optimal courage/caution balance depends on whether errors are reversible.
+**The substrate-dependent interpretation.** Chess pieces operate in a discrete, irreversible action space where stable perception is essential. Transformers operate in a continuous, differentiable landscape where forward noise acts as regularization and gradient precision is needed for fine-grained optimization.
 
 
 ## 8. Cross-Experiment Synthesis
 
-Three claims emerge from the combined evidence across six experiments.
+Three findings emerge from the combined evidence across six experiments at $n = 30$.
 
-### Claim 1: Robustness is structural, not algorithmic
+### Finding 1: Robustness is structural and bounded
 
-No perturbation produces a statistically significant degradation exceeding ~3.4% (sign-only in Exp 6, $p = 0.004$). Most perturbations produce no measurable change — the pattern is *tolerance* rather than improvement. Of the mean effects that appear to improve over baseline (Exp 1 freezing, Exp 3 small noise, Exp 4 restricted windows, Exp 5 partial flow), only Experiment 1 high freezing is statistically significant ($p < 0.01$). The others are not distinguishable from noise at $n = 3$. This robustness arises from the transformer architecture itself: the residual stream provides redundant pathways, the MLP layers carry independent learning capacity, and the multi-head structure distributes representation across parallel subspaces.
+The architecture tolerates mild perturbations but degrades under severe gradient corruption. The tolerance boundary is clearly delineated:
 
-| Perturbation | Loss Delta (mean) | Paired $p$-value | Status |
+| Perturbation | Final Loss Δ% | $p$-value | Status |
 |---|---|---|---|
-| 8/16 heads frozen | -0.016 (improves) | 0.009 | Significant |
-| 12/16 heads frozen | -0.053 (improves) | 0.006 | Significant |
-| All inter-layer gradients stopped | +0.063 (+2.4%) | 0.021 | Significant (worse) |
-| Sign-only gradients (Exp 3) | +0.011 (+0.4%) | 0.860 | Not significant |
-| Noisy gradients ($\sigma = 0.1$, Exp 3) | +0.110 (+4.4%) | 0.265 | Not significant |
-| Window=8 (restricted attention) | -0.002 (improves) | 0.038 | Significant (tiny) |
-| Window=2 (restricted attention) | -0.035 (improves) | 0.318 | Not significant |
-| Light topology (25% gradient flow) | -0.001 (improves) | 0.608 | Not significant |
-| Sign-only (Exp 6) | +0.090 (+3.4%) | 0.004 | Significant (worse) |
+| Freeze 1-4 heads | +0.1-0.2% | >0.37 | Tolerated (ns) |
+| Freeze 8-16 heads | +0.4-0.5% | 0.06-0.19 | Marginal at best |
+| Window=2,4,8 | +0.1-0.6% | >0.13 | Tolerated (ns) |
+| Light gradient flow (25%) | +0.1% | 0.43 | Tolerated (ns) |
+| Half gradient flow (50%) | +0.0% | 0.55 | Tolerated (ns) |
+| Noisy gradients (σ=0.01) | +0.3% | 0.53 | Tolerated (ns) |
+| Dropout (p=0.1) | +0.5% | 0.029 | Mild degradation |
+| Noisy gradients (σ=0.1) | +2.5% | 0.021 | Significant degradation |
+| Quantized 3-bit | +3.0% | 0.019 | Significant degradation |
+| Sign-only gradients | +4.6% | 0.004 | Significant degradation |
+| Cell-view (no backprop) | +4.9% | <0.001 | Significant degradation |
 
-### Claim 2: DG tracks perturbation response consistently
+The pattern is *tolerance with limits*: perturbations that preserve approximate gradient direction (small noise, partial flow) are absorbed by the architecture's redundancy; perturbations that destroy gradient information (sign-only, quantization) produce measurable degradation. The worst degradation (cell-view, +4.9%) is still modest — the architecture works even when its defining optimization mechanism is eliminated.
 
-Every perturbation type elevates the DG index. As a designed metric — we defined it and went measuring it — DG confirms that the rerouting phenomenon is real and quantifiable. But DG is the measuring stick, not the discovery. The discoveries are the anomalies it helps quantify (see Section 9).
+### Finding 2: DG does not track perturbation
 
-| Perturbation | DG Index | DG Change |
-|---|---|---|
-| Baseline | 0.299 | — |
-| 16 heads frozen | 0.502 | +68% |
-| Cell-view (local learning) | 0.375 | +25% |
-| Noisy gradients (σ=0.1) | 0.533 | +78% |
-| Quantized 3-bit | 0.425 | +42% |
-| Window=8 (restricted attention) | 0.499 | +67% |
-| Cell-view topology (Exp 5) | 0.375 | +25% |
-| Courageous/courageous | 0.604 | +102% |
+At $n = 3$, the DG Index appeared to scale with perturbation severity — every perturbation elevated DG, and the response correlated with damage level. At $n = 30$, this finding does not replicate:
 
-The DG response scales with perturbation severity and appears regardless of whether the perturbation targets architecture (freezing), information flow (cell-view, communication topology), optimization signal (gradient degradation), attention span (vision radius), or forward-pass stability (courage/caution). DG=0.604 (courageous/courageous) is the new maximum, surpassing the previous highest (noisy σ=0.1, 0.533) by 13%.
+- **No perturbation significantly increases DG.** Across all 23 perturbation conditions tested, not a single one produces a statistically significant DG increase over baseline ($p > 0.16$ for all).
+- **Two perturbations significantly *decrease* DG:** freeze 12 ($p = 0.034$, $d = -0.41$) and quantized 3-bit ($p = 0.028$, $d = -0.46$).
+- **DG is indistinguishable from noise across conditions.** Baseline DG = 0.571 ± 0.312. All conditions fall within 0.447–0.606, with high within-condition variance.
 
-### Claim 3: Centralized control is optional
+The $n = 3$ DG patterns were sampling artifacts. DG captures a real property of loss trajectories (temporary increases followed by improvements) but this property is a stochastic feature of SGD training, not a perturbation response. The Levin analogy — that damage triggers compensatory rerouting — does not hold for transformer training dynamics at this scale.
 
-Global backpropagation — the defining algorithm of deep learning — is not required for viable learning in this architecture:
+### Finding 3: The chess-paper inversion is robust
 
-- **Local learning** (cell-view): Each layer learns independently. Cost: +2.4% ($p = 0.021$).
-- **Sign-only gradients** (Exp 3): Only direction information propagated. No significant degradation ($p = 0.860$).
-- **Frozen components**: 8+ heads frozen. Cost: negative — significantly improves ($p < 0.01$).
-- **Restricted attention**: Window=8 limits context. Significant but tiny improvement ($p = 0.038$, effect -0.002).
-- **Partial gradient flow**: 25% of gradient signal passed between layers. No significant change from full ($p = 0.61$).
+Sign-only gradients degrade performance significantly more than dropout. This is the paper's most robust cross-experiment finding:
 
-The trajectories differ — cell-view training produces different head specialization patterns, frozen-head training shifts load to MLPs, restricted windows force local attention — but the outcomes converge. Multiple internal organizations produce equivalent external behavior.
+- Experiment 3: sign-only worsens mean loss by +3.9% ($p < 0.001$, $d = +6.13$)
+- Experiment 6: sign-only (b) vs dropout (c) gap is +3.8% mean loss ($p < 0.001$, $d = +6.00$)
 
-*Note:* The previous Claim 4 ("the information bottleneck is beneficial") has been removed. It was supported only by Experiment 1's high-freezing result ($p < 0.01$). The Experiment 4 window effects ($p = 0.17$–$0.32$ for windows 2 and 4) and Experiment 5 partial flow effects ($p > 0.28$) are not statistically significant. The information bottleneck hypothesis remains a suggestive pattern across experiments but is not proven by this data.
+The chess paper predicts "cautious position, courageous moves" as optimal. In transformers, the opposite holds: forward-pass noise (dropout) is far less damaging than gradient-signal reduction (sign-only). This inversion is substrate-dependent and highly statistically robust.
 
 
 ## 9. Anomalies — What Perturbation Revealed
 
-The DG metric confirmed what we designed it to measure. The genuine findings are the phenomena that *emerged* without being designed for — results anti-intuitive under standard deep learning assumptions. These are the Levin analogs: things that "should not happen normally," made legible only through perturbation.
+### Statistically Supported ($p < 0.05$)
 
-Paired statistical analysis at $n = 3$ supports some of these findings robustly, others only weakly, and reveals that several originally claimed anomalies are not distinguishable from noise. We organize the findings into two tiers based on statistical support, followed by explicit retractions.
+**1. Sign-only gradients degrade significantly.** Discarding gradient magnitude (+4.6% final loss, $p = 0.004$; +3.9% mean loss, $p < 0.001$) is the most damaging single perturbation tested. The effect is large ($d > 0.5$ for final, $d > 6$ for mean), replicable, and inverts the chess-paper prediction. This is the paper's strongest individual finding.
 
-### Tier 1 — Statistically Supported Findings ($p < 0.05$)
+**2. Cell-view is viable but costly.** Eliminating all inter-layer gradient flow degrades final loss by +4.9% ($p < 0.001$, $d = +1.16$). The cost is significant but not catastrophic — each layer learns independently and the system still generates coherent sequences. This confirms that centralized backpropagation is helpful but not strictly necessary.
 
-**1. Heavy freezing improves performance (Exp 1).** Freezing 8+ attention heads significantly improves final loss ($p < 0.01$). Freezing 1-4 heads does not. The improvement emerges at a threshold around 50% of heads, not monotonically. This is the paper's strongest finding: removing capacity *improves* performance when enough heads are frozen — the perturbation eliminates gradient interference, revealing that frozen random projections serve the system better than competing learners.
+**3. Severe gradient corruption degrades systematically.** Quantized 3-bit ($p = 0.019$) and noisy $\sigma = 0.1$ ($p = 0.021$) both significantly worsen final loss. The degradation scales with corruption severity: sign-only (+4.6%) > quantized (+3.0%) > noisy $\sigma = 0.1$ (+2.5%) > noisy $\sigma = 0.01$ (+0.3%, ns). The ordering is consistent across final and mean loss metrics.
 
-**2. Sign-only gradients degrade more than dropout (Exp 6).** Sign-only (b) worsens mean loss by +3.4% ($p = 0.004$) while dropout (c) worsens by only ~0.1% ($p = 0.064$, marginal). The gap between conditions (b) and (c) is genuine and large. This inverts the chess paper's "cautious position, courageous moves" prediction — in transformers, forward-pass noise (dropout) is far less damaging than gradient-signal reduction (sign-only). The inversion is substrate-dependent: chess pieces operate in a discrete, irreversible action space where stable perception is essential; transformers operate in a continuous, differentiable landscape where forward noise provides regularization and gradient precision is needed for fine-grained optimization.
+**4. Tiny mean-loss improvements under freezing.** Freezing 4+ heads improves mean trajectory loss by 0.1-0.2% ($p < 0.05$ for all, $p < 0.001$ for 8+). This does not affect final loss — the improvement is in the training trajectory, not the endpoint. The effect suggests frozen heads reduce gradient interference during training without altering the convergence basin.
 
-### Tier 2 — Observations Consistent With But Not Proven By Data
+### Not Supported or Retracted
 
-**3. Cell-view is viable at modest cost (Exp 2, Exp 5).** Cell-view degrades mean loss by +2.4% ($p = 0.021$, statistically significant that it is *worse*). The cost is small enough to be noteworthy — complete elimination of inter-layer gradient flow does not break learning. But cell-view does not *improve* over baseline; it is a tolerated perturbation, not a beneficial one.
-
-**4. Sign-only gradients approximately match baseline (Exp 3).** Sign-only produces no statistically significant degradation ($p = 0.860$). The mean effect is +0.4%, consistent with prior SignSGD findings (Bernstein et al., 2018). However, the wide confidence interval at $n = 3$ means precision is low — the true effect could range from moderate improvement to moderate degradation.
-
-**5. Isolation produces head specialization (Exp 2).** Cutting inter-layer gradients causes L3 heads to specialize more aggressively. This is an observational finding from head entropy analysis, not a loss-based statistical comparison. Without upstream gradient refinement, the final layer concentrates its attention patterns rather than distributing them.
-
-**6. Window=8 gives a tiny improvement (Exp 4).** Window=8 significantly improves mean loss ($p = 0.038$), but the effect is -0.002 — too small to be practically meaningful. The finding needs replication at higher $n$ to determine whether the information bottleneck hypothesis holds for attention windowing.
-
-### Retracted or Downgraded Claims
-
-The following claims from the original analysis are not supported by paired statistical testing:
-
-- **"Noise helps" (original Anomaly 3):** The mean effect of noisy $\sigma = 0.01$ is negative (-0.028) but not statistically significant ($p = 0.701$). Paired differences go in opposite directions across runs. **Retracted.**
-- **"Monotonic improvement" with freezing:** The trend in means is visible but only significant for 8+ frozen heads. The per-step improvement for low freezing (1-4 heads) is indistinguishable from noise ($p > 0.85$). **Downgraded** to threshold effect.
-- **"Partial communication outperforms full" (original Anomaly 7):** Light topology's mean loss advantage (-0.0006) is not significant ($p = 0.61$). Heavy and half are also indistinguishable from full ($p > 0.28$). **Retracted.**
-- **"Window=2 beats full attention by 1.4%" (original Anomaly 6):** The final loss difference is not significant ($p = 0.318$). **Retracted** as a standalone finding; retained as a suggestive trend.
-- **"Decentralization stabilizes" (original Anomaly 4):** Variance comparisons at $n = 3$ are unreliable. The pattern is interesting but not testable at this sample size. **Downgraded** to observational.
-
-These anomalies — two robustly supported, four observational, and several retracted — are what the experiments actually revealed. DG is a useful measuring stick that confirms rerouting is happening. The statistically supported anomalies *are* the rerouting; the observational ones are hypotheses for larger-scale replication.
+- **"Damage improves" (final loss):** The $n = 3$ finding that freezing 8+ heads significantly improves final loss ($p = 0.009$) does not replicate at $n = 30$. No freezing level improves final loss ($p > 0.06$ for all). **Retracted.**
+- **"DG scales with perturbation":** The $n = 3$ pattern of DG increasing with perturbation severity does not replicate. DG shows no significant increase under any condition. Two conditions (freeze 12, quantized) significantly *decrease* DG. **Retracted.**
+- **"Monotonic improvement" with freezing:** Spearman $\rho = 0.013$, $p = 0.85$. **Retracted.**
+- **"Noise helps":** Noisy $\sigma = 0.01$ produces no significant effect ($p > 0.5$). **Retracted.**
+- **"Partial communication outperforms full":** No partial-flow condition improves over baseline. **Retracted.**
+- **"Restricted vision improves final loss":** No window size significantly changes final loss. **Retracted.**
+- **"Information bottleneck is beneficial":** Not supported by any final-loss comparison. **Retracted.**
 
 
 ## 10. The Nancy Reading
 
-Nancy's concept of désœuvrement — the interruption of work that reveals the community constituted by work — provides the interpretive frame for this *methodology*, not for specific statistical claims. The philosophical reading applies to the act of perturbation and what it makes visible, regardless of which particular effects prove robust at higher sample sizes.
+Nancy's concept of désœuvrement — the interruption of work that reveals the community constituted by work — provides the interpretive frame for this *methodology*. The philosophical reading applies to the act of perturbation and what it makes visible.
 
-**Normal training is opaque.** During standard backpropagation, the transformer's components cooperate invisibly. Attention heads, MLP layers, and residual connections form a division of labor that produces outputs but reveals nothing about its own organization. The system works, and its working conceals its structure.
+**Normal training is opaque.** During standard backpropagation, the transformer's components cooperate invisibly. The system works, and its working conceals its structure.
 
-**Perturbation as unworking.** Each experiment interrupts the system's work in a different way — freezing components, severing gradient flow, corrupting signals, restricting vision, scaling communication, introducing forward noise. These interruptions do not destroy the system. Instead, they make visible the relational structure that was always present but hidden:
+**Perturbation as unworking.** Each experiment interrupts the system's work — freezing components, severing gradient flow, corrupting signals, restricting vision, scaling communication, introducing forward noise. These interruptions reveal:
 
-- **Redundancy**: Frozen heads reveal that MLPs carry independent learning capacity ($p < 0.01$ for 8+ frozen heads). This capacity exists in baseline training too, but is invisible because the heads mask it. This is the strongest statistically supported instance of the unworking principle.
-- **Rerouting**: Elevated DG shows the system exploring alternative configurations. These alternative pathways exist in the loss landscape at all times; perturbation forces the system to traverse them.
-- **Decentralized viability**: Cell-view training shows that each layer can learn autonomously at a modest 2.4% cost ($p = 0.021$). The layers are always singular-plural — simultaneously individual and communal — but global backprop makes their individuality invisible.
-- **Tolerance of constraint**: Nancy's *partage* (sharing/dividing) and *espacement* (spacing). Reduced communication forces each layer into a more independent relation with the collective goal. The spacing between components — partial gradient flow, restricted attention windows — is tolerated without significant degradation, and in the case of high freezing, actively beneficial. Whether this tolerance constitutes *espacement* as constitutive rather than merely innocuous remains a hypothesis for larger-scale investigation.
-
-**What désœuvrement reveals is not a failure mode but a mode of being.** The transformer's components tolerate perturbation to a remarkable degree; the community's structure only becomes legible when coordinated work is interrupted. The methodology of unworking is the contribution — what it reveals in any specific experiment depends on statistical power and replication.
+- **Bounded tolerance**: The architecture absorbs mild perturbations (small noise, partial gradient flow, moderate freezing) without significant degradation. Severe perturbations (sign-only gradients, full gradient elimination) produce measurable but bounded costs (≤5%). This tolerance is structural — the residual stream, multi-head attention, and MLP layers provide redundant pathways.
+- **Gradient precision matters more than gradient flow**: The sharpest degradation comes not from reducing gradient *quantity* (partial flow, freezing) but from reducing gradient *quality* (sign-only, quantization). The optimization signal's directional precision is more critical than its magnitude or completeness.
+- **Decentralized viability**: Cell-view training confirms each layer can learn autonomously at a ~5% final-loss cost. The layers are always singular-plural — simultaneously individual and communal — but global backprop makes their individuality invisible.
+- **No rerouting signal**: The DG Index — designed to detect perturbation-triggered rerouting analogous to Levin's biological findings — shows no systematic response to perturbation at $n = 30$. The transformer's response to perturbation is *degradation or tolerance*, not the *compensatory rerouting* observed in biological systems. This is itself a finding about substrate differences: the continuous optimization landscape may not exhibit the discrete reorganization events that characterize developmental biology.
 
 
 ## 11. Limitations
 
-- **Statistical power**: With 3 runs per condition ($df = 2$), paired $t$-tests detect only large effects. Paired analysis reveals that many reported mean effects are not statistically significant: the Experiment 3 gradient degradation effects ($p > 0.26$), the Experiment 4 window improvements ($p = 0.17$–$0.32$), the Experiment 5 partial-flow effects ($p > 0.28$), and the "noise helps" effect ($p = 0.701$) are all indistinguishable from noise. Of the originally described anomalies, only two (high-freezing improvement, sign-only degradation gap in Experiment 6) are statistically robust. Replication with 30+ runs per condition is the most important next step.
 - **Scale**: 4 layers, 16 dimensions, 16 heads. Scaling behavior to production-sized transformers is unknown.
 - **Task complexity**: Character-level name generation is a toy task. Whether these findings hold for complex language modeling, reasoning, or multi-modal tasks is untested.
 - **Training duration**: 200 steps captures early learning dynamics but not long-horizon phenomena like grokking or phase transitions.
-- **DG metric**: The delayed gratification index is a designed metric — unlike Levin, who discovered DG as an emergent surprise, we defined it and went measuring it. The measurements confirm the metric works as defined, but they are confirmation, not discovery. The primary findings are the emergent patterns (Section 9) that perturbation made legible. DG's relationship to standard measures of representation quality, generalization, and internal structure requires further validation.
+- **DG metric**: The DG Index does not respond to perturbation at $n = 30$, contrary to $n = 3$ pilot data. The metric captures a real stochastic property of loss trajectories but does not function as a perturbation response measure. Its relationship to biological delayed gratification is questionable at this scale.
 - **Gradient degradation scope**: Only four degradation methods tested. Adversarial gradient attacks, structured corruption, and layer-selective degradation remain unexplored.
-- **Chess-paper translation fidelity**: The courage/caution inversion (Finding 2) reflects substrate differences between discrete board games and continuous optimization landscapes. Whether richer composite perturbation designs — combining multiple perturbation types simultaneously rather than using single proxies — would produce results closer to the chess paper's predictions remains untested. The information bottleneck and partial-communication predictions are not testable at the current sample size.
+- **Chess-paper translation fidelity**: The courage/caution inversion (Finding 1) reflects genuine substrate differences. Whether richer composite perturbation designs would produce different results remains untested.
+- **Effect sizes**: Many statistically significant effects are practically small (mean-loss improvements under 0.5%). Statistical significance at $n = 30$ does not imply practical importance.
