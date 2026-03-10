@@ -168,14 +168,23 @@ class Probe:
 # ============================================================================
 
 def _softmax(logits):
-    """Numerically stable softmax on a 1D numpy array."""
-    x = logits - logits.max()
+    """Numerically stable softmax. Works on 1D or last axis of ND."""
+    if logits.ndim == 1:
+        x = logits - logits.max()
+        e = np.exp(x)
+        return e / e.sum()
+    # ND: softmax along last axis
+    x = logits - logits.max(axis=-1, keepdims=True)
     e = np.exp(x)
-    return e / e.sum()
+    return e / e.sum(axis=-1, keepdims=True)
 
 
 def _rmsnorm(x):
-    ms = np.mean(x * x)
+    """RMSNorm. Works on 1D vector or (n, d) batch."""
+    if x.ndim == 1:
+        ms = np.mean(x * x)
+        return x / np.sqrt(ms + 1e-5)
+    ms = np.mean(x * x, axis=-1, keepdims=True)
     return x / np.sqrt(ms + 1e-5)
 
 
@@ -184,372 +193,323 @@ def _shannon_entropy(weights):
 
 
 # ============================================================================
-# GPT forward pass — returns (loss, grads, snapshot_or_None)
+# GPT forward pass — fully vectorized across positions
 # ============================================================================
 
 def _forward_backward(tokens, n, state_dict, config, hooks, capture_state=False):
     """
     Full forward + backward pass for one document.
-
-    Args:
-        tokens: list of int token ids
-        n: number of positions to process
-        state_dict: dict of name -> np.ndarray (2D weight matrices)
-        config: model config dict
-        hooks: Hooks object
-        capture_state: whether to record per-position snapshots
+    Vectorized across all n positions simultaneously.
 
     Returns:
         (loss_scalar, per_position_losses, grads_dict, snapshots_or_None)
-        grads_dict has same keys as state_dict, values are gradient arrays.
     """
     n_layer = config['n_layer']
     n_head = config['n_head']
     n_embd = config['n_embd']
     head_dim = config['head_dim']
     vocab_size = config['vocab_size']
+    sd = state_dict
 
-    # Initialize gradient accumulators
-    grads = {k: np.zeros_like(v) for k, v in state_dict.items()}
+    grads = {k: np.zeros_like(v) for k, v in sd.items()}
 
-    # KV cache for autoregressive processing
-    # keys[li] and vals[li] are lists of 1D arrays, one per position processed so far
-    keys_cache = [[] for _ in range(n_layer)]
-    vals_cache = [[] for _ in range(n_layer)]
+    token_ids = tokens[:n]
+    target_ids = tokens[1:n+1]
 
-    total_loss = 0.0
-    per_position_losses = []
+    # Check which hook groups are active (to skip per-position loops when possible)
+    has_fwd_hooks = any(hooks.has(name) for name in
+        ['emb', 'pre_norm', 'logits'] +
+        [f'qkv.{li}' for li in range(n_layer)] +
+        [f'attn_w.{li}.{h}' for li in range(n_layer) for h in range(n_head)] +
+        [f'head_out.{li}.{h}' for li in range(n_layer) for h in range(n_head)] +
+        [f'post_attn.{li}' for li in range(n_layer)] +
+        [f'mlp_hidden.{li}' for li in range(n_layer)] +
+        [f'post_mlp.{li}' for li in range(n_layer)])
+
+    # ---- FORWARD PASS (all positions at once) ----
+
+    # Embeddings: (n, d)
+    X = sd['wte'][token_ids] + sd['wpe'][:n]
+
+    if hooks.has('emb'):
+        for i in range(n):
+            X[i] = hooks.apply('emb', X[i])
+
     snapshots = [] if capture_state else None
 
-    for pos_id in range(n):
-        token_id = tokens[pos_id]
-        target_id = tokens[pos_id + 1]
+    # Pre-norm: (n, d)
+    X_pre = X.copy()
+    X = _rmsnorm(X)
 
-        # ---- Forward pass for this position ----
-        # We store all intermediates needed for backward
+    if hooks.has('pre_norm'):
+        for i in range(n):
+            X[i] = hooks.apply('pre_norm', X[i])
 
-        # Embedding
-        tok_emb = state_dict['wte'][token_id].copy()  # (n_embd,)
-        pos_emb = state_dict['wpe'][pos_id].copy()     # (n_embd,)
-        x = tok_emb + pos_emb                          # (n_embd,)
-        x = hooks.apply('emb', x)
+    # Store intermediates per layer for backward
+    fwd_layers = []
 
-        snapshot = {'emb': x.copy(), 'layers': []} if capture_state else None
+    # Causal mask: (n, n), True where we should attend
+    causal = np.tri(n, dtype=bool)  # lower triangle including diagonal
 
-        # Pre-norm
-        x_pre_norm_in = x.copy()
-        ms0 = np.mean(x * x)
-        scale0 = 1.0 / np.sqrt(ms0 + 1e-5)
-        x = x * scale0
-        x = hooks.apply('pre_norm', x)
+    for li in range(n_layer):
+        lf = {}
 
-        # Store forward intermediates for backward
-        # We'll store everything in lists indexed by layer
-        fwd = {
-            'tok_emb': tok_emb,
-            'pos_emb': pos_emb,
-            'x_after_emb': x_pre_norm_in,  # before first rmsnorm
-            'scale0': scale0,
-            'x_after_pre_norm': x.copy(),
-            'layers': [],
-        }
+        # --- Attention ---
+        X_res = X.copy()
+        lf['X_res_attn'] = X_res
 
-        for li in range(n_layer):
-            layer_fwd = {}
-            if capture_state:
-                layer_snap = {'heads': []}
+        X_normed = _rmsnorm(X)
+        lf['X_pre_attn'] = X.copy()
+        lf['X_normed_attn'] = X_normed
 
-            # --- Attention block ---
-            x_residual = x.copy()
-            layer_fwd['x_residual_attn'] = x_residual
+        # QKV: (n, d)
+        Q = X_normed @ sd[f'layer{li}.attn_wq'].T
+        K = X_normed @ sd[f'layer{li}.attn_wk'].T
+        V = X_normed @ sd[f'layer{li}.attn_wv'].T
 
-            # RMSNorm before attention
-            ms_a = np.mean(x * x)
-            scale_a = 1.0 / np.sqrt(ms_a + 1e-5)
-            x_normed = x * scale_a
-            layer_fwd['x_before_attn_norm'] = x.copy()
-            layer_fwd['scale_attn'] = scale_a
-            layer_fwd['x_normed_attn'] = x_normed.copy()
+        if hooks.has(f'qkv.{li}'):
+            for i in range(n):
+                qkv = hooks.apply(f'qkv.{li}', (Q[i], K[i], V[i]))
+                if isinstance(qkv, tuple) and len(qkv) == 3:
+                    Q[i], K[i], V[i] = qkv
 
-            # Q, K, V projections
-            q = state_dict[f'layer{li}.attn_wq'] @ x_normed  # (n_embd,)
-            k = state_dict[f'layer{li}.attn_wk'] @ x_normed
-            v = state_dict[f'layer{li}.attn_wv'] @ x_normed
+        lf['Q'] = Q
+        lf['K'] = K
+        lf['V'] = V
 
-            # QKV hook
-            qkv = hooks.apply(f'qkv.{li}', (q, k, v))
-            if isinstance(qkv, tuple) and len(qkv) == 3:
-                q, k, v = qkv
+        # Reshape to multi-head: (n, nh, hd)
+        Q_h = Q.reshape(n, n_head, head_dim)
+        K_h = K.reshape(n, n_head, head_dim)
+        V_h = V.reshape(n, n_head, head_dim)
 
-            layer_fwd['q'] = q.copy()
-            layer_fwd['k'] = k.copy()
-            layer_fwd['v'] = v.copy()
+        # Attention scores: (nh, n, n) = (nh, n, hd) @ (nh, hd, n)
+        Q_t = Q_h.transpose(1, 0, 2)  # (nh, n, hd)
+        K_t = K_h.transpose(1, 0, 2)  # (nh, n, hd)
+        V_t = V_h.transpose(1, 0, 2)  # (nh, n, hd)
 
-            keys_cache[li].append(k.copy())
-            vals_cache[li].append(v.copy())
+        scores = np.einsum('hid,hjd->hij', Q_t, K_t) / np.sqrt(head_dim)  # (nh, n, n)
+        # Apply causal mask: set future positions to -inf
+        scores[:, ~causal] = -1e9
 
-            # Multi-head attention
-            x_attn = np.zeros(n_embd)
-            layer_fwd['heads'] = []
-            T = len(keys_cache[li])  # number of tokens so far
+        # Softmax: (nh, n, n)
+        attn_w = _softmax(scores)
 
+        # Apply attention weight hooks per-head
+        has_attn_hooks = any(hooks.has(f'attn_w.{li}.{h}') for h in range(n_head))
+        if has_attn_hooks:
             for h in range(n_head):
-                hs = h * head_dim
-                he = hs + head_dim
-                q_h = q[hs:he]
+                if hooks.has(f'attn_w.{li}.{h}'):
+                    for i in range(n):
+                        w = attn_w[h, i, :i+1].copy()
+                        w = hooks.apply(f'attn_w.{li}.{h}', w)
+                        if not isinstance(w, np.ndarray):
+                            w = np.array(w, dtype=np.float64)
+                        attn_w[h, i, :] = 0
+                        attn_w[h, i, :len(w)] = w
 
-                # Gather cached keys/values for this head
-                k_h = np.array([keys_cache[li][t][hs:he] for t in range(T)])  # (T, head_dim)
-                v_h = np.array([vals_cache[li][t][hs:he] for t in range(T)])  # (T, head_dim)
+        lf['attn_w'] = attn_w
 
-                # Attention logits and weights
-                attn_logits = k_h @ q_h / np.sqrt(head_dim)  # (T,)
-                attn_weights = _softmax(attn_logits)           # (T,)
+        # Attention output: (nh, n, hd) = (nh, n, n) @ (nh, n, hd)
+        attn_out = np.einsum('hij,hjd->hid', attn_w, V_t)  # (nh, n, hd)
 
-                # Hook: attention weights
-                attn_weights = hooks.apply(f'attn_w.{li}.{h}', attn_weights)
-                if not isinstance(attn_weights, np.ndarray):
-                    attn_weights = np.array(attn_weights, dtype=np.float64)
+        # Apply head_out hooks
+        has_head_hooks = any(hooks.has(f'head_out.{li}.{h}') for h in range(n_head))
+        if has_head_hooks:
+            for h in range(n_head):
+                if hooks.has(f'head_out.{li}.{h}'):
+                    for i in range(n):
+                        ho = hooks.apply(f'head_out.{li}.{h}', attn_out[h, i].copy())
+                        if not isinstance(ho, np.ndarray):
+                            ho = np.array(ho, dtype=np.float64)
+                        attn_out[h, i] = ho
 
-                # Head output
-                head_out = v_h.T @ attn_weights  # (head_dim,)
-
-                # Hook: head output
-                head_out = hooks.apply(f'head_out.{li}.{h}', head_out)
-                if not isinstance(head_out, np.ndarray):
-                    head_out = np.array(head_out, dtype=np.float64)
-
-                layer_fwd['heads'].append({
-                    'q_h': q_h.copy(),
-                    'k_h': k_h.copy(),
-                    'v_h': v_h.copy(),
-                    'attn_logits': attn_logits.copy(),
-                    'attn_weights': attn_weights.copy(),
-                    'head_out': head_out.copy(),
-                })
-
-                if capture_state:
+        # Capture state for probe
+        if capture_state:
+            for i in range(n):
+                if i >= len(snapshots):
+                    snapshots.append({'emb': X_pre[i].tolist(), 'layers': []})
+                layer_snap = {'heads': []}
+                for h in range(n_head):
+                    w = attn_w[h, i, :i+1]
+                    ho = attn_out[h, i]
                     layer_snap['heads'].append({
-                        'attn_weights': attn_weights.tolist(),
-                        'attn_entropy': float(_shannon_entropy(attn_weights)),
-                        'head_out_norm': float(np.linalg.norm(head_out)),
-                        'head_out_vec': head_out.tolist(),
+                        'attn_weights': w.tolist(),
+                        'attn_entropy': float(_shannon_entropy(w)),
+                        'head_out_norm': float(np.linalg.norm(ho)),
+                        'head_out_vec': ho.tolist(),
                     })
+                snapshots[i]['layers'].append(layer_snap)
 
-                x_attn[hs:he] = head_out
+        # Reshape back: (n, d)
+        X_attn = attn_out.transpose(1, 0, 2).reshape(n, n_embd)
+        lf['X_attn'] = X_attn
 
-            layer_fwd['x_attn'] = x_attn.copy()
+        # Output projection + residual
+        X_proj = X_attn @ sd[f'layer{li}.attn_wo'].T  # (n, d)
+        X = X_proj + X_res
+        lf['X_proj_attn'] = X_proj
 
-            # Output projection
-            x_proj = state_dict[f'layer{li}.attn_wo'] @ x_attn  # (n_embd,)
-            x = x_proj + x_residual
-            layer_fwd['x_proj_attn'] = x_proj.copy()
+        if hooks.has(f'post_attn.{li}'):
+            for i in range(n):
+                X[i] = hooks.apply(f'post_attn.{li}', X[i])
 
-            # Hook: post-attention
-            x = hooks.apply(f'post_attn.{li}', x)
-            if not isinstance(x, np.ndarray):
-                x = np.array(x, dtype=np.float64)
-            layer_fwd['x_after_attn'] = x.copy()
-
-            if capture_state:
-                layer_snap['post_attn_residual'] = x.tolist()
-
-            # --- MLP block ---
-            x_residual_mlp = x.copy()
-            layer_fwd['x_residual_mlp'] = x_residual_mlp
-
-            # RMSNorm before MLP
-            ms_m = np.mean(x * x)
-            scale_m = 1.0 / np.sqrt(ms_m + 1e-5)
-            x_normed_mlp = x * scale_m
-            layer_fwd['x_before_mlp_norm'] = x.copy()
-            layer_fwd['scale_mlp'] = scale_m
-            layer_fwd['x_normed_mlp'] = x_normed_mlp.copy()
-
-            # FC1 + ReLU
-            fc1_out = state_dict[f'layer{li}.mlp_fc1'] @ x_normed_mlp  # (4*n_embd,)
-            relu_out = np.maximum(0, fc1_out)
-            relu_mask = (fc1_out > 0).astype(np.float64)
-            layer_fwd['fc1_out'] = fc1_out
-            layer_fwd['relu_out'] = relu_out
-            layer_fwd['relu_mask'] = relu_mask
-
-            # Hook: MLP hidden
-            relu_out_hooked = hooks.apply(f'mlp_hidden.{li}', relu_out.copy())
-            if not isinstance(relu_out_hooked, np.ndarray):
-                relu_out_hooked = np.array(relu_out_hooked, dtype=np.float64)
-            layer_fwd['relu_out_hooked'] = relu_out_hooked
-
-            # FC2 + residual
-            fc2_out = state_dict[f'layer{li}.mlp_fc2'] @ relu_out_hooked  # (n_embd,)
-            x = fc2_out + x_residual_mlp
-            layer_fwd['fc2_out'] = fc2_out
-
-            # Hook: post-MLP
-            x = hooks.apply(f'post_mlp.{li}', x)
-            if not isinstance(x, np.ndarray):
-                x = np.array(x, dtype=np.float64)
-            layer_fwd['x_after_mlp'] = x.copy()
-
-            if capture_state:
-                layer_snap['post_mlp_residual'] = x.tolist()
-                snapshot['layers'].append(layer_snap)
-
-            fwd['layers'].append(layer_fwd)
-
-        # Final logits
-        fwd['x_final'] = x.copy()
-        logits = state_dict['lm_head'] @ x  # (vocab_size,)
-        logits = hooks.apply('logits', logits)
-        if not isinstance(logits, np.ndarray):
-            logits = np.array(logits, dtype=np.float64)
-        fwd['logits'] = logits.copy()
-
-        # Softmax + cross-entropy loss
-        probs = _softmax(logits)
-        fwd['probs'] = probs.copy()
-        loss_t = -math.log(probs[target_id] + 1e-10)
-        total_loss += loss_t
-        per_position_losses.append(loss_t)
+        lf['X_after_attn'] = X.copy()
 
         if capture_state:
-            snapshots.append(snapshot)
+            for i in range(n):
+                snapshots[i]['layers'][-1]['post_attn_residual'] = X[i].tolist()
 
-        # ---- Backward pass for this position ----
-        # dloss/dlogits through softmax + cross-entropy
-        # d(-log(softmax(x)[target])) / dx_i = softmax(x)_i - 1{i==target}
-        dlogits = probs.copy()
-        dlogits[target_id] -= 1.0
-        dlogits /= n  # average over positions
+        # --- MLP ---
+        X_res_mlp = X.copy()
+        lf['X_res_mlp'] = X_res_mlp
 
-        # lm_head: logits = lm_head @ x_final
-        grads['lm_head'] += np.outer(dlogits, fwd['x_final'])
-        dx = state_dict['lm_head'].T @ dlogits
+        X_normed_mlp = _rmsnorm(X)
+        lf['X_pre_mlp'] = X.copy()
+        lf['X_normed_mlp'] = X_normed_mlp
 
-        # Backward through layers (reverse order)
-        for li in range(n_layer - 1, -1, -1):
-            lf = fwd['layers'][li]
+        # FC1 + ReLU: (n, 4d)
+        fc1 = X_normed_mlp @ sd[f'layer{li}.mlp_fc1'].T
+        relu = np.maximum(0, fc1)
+        relu_mask = (fc1 > 0).astype(np.float64)
+        lf['relu_mask'] = relu_mask
 
-            # --- MLP backward ---
-            # post_mlp hook: if hook replaced x, gradient may be modified
-            # For stop_gradient hooks, dx should be zero (hook returns detached value)
-            # We handle this by checking if the hook is present and if it returns
-            # a modified value. For the numpy backend, stop_gradient hooks should
-            # return np.zeros_like(x) as the gradient or we handle it specially.
-            # Actually: the hook modifies the forward value. For stop-gradient,
-            # the hook returns a new array (detached). The backward should NOT
-            # flow through. We handle this via a grad_scale mechanism.
-            # For now: hooks that need to modify backward flow do so via grad_hooks.
+        # MLP hidden hooks
+        if hooks.has(f'mlp_hidden.{li}'):
+            for i in range(n):
+                relu[i] = hooks.apply(f'mlp_hidden.{li}', relu[i].copy())
+                if not isinstance(relu[i], np.ndarray):
+                    relu[i] = np.array(relu[i], dtype=np.float64)
 
-            # Residual: x = fc2_out + x_residual_mlp
-            dx_residual_mlp = dx.copy()
-            dfc2_out = dx.copy()
+        lf['relu_hooked'] = relu
 
-            # FC2: fc2_out = mlp_fc2 @ relu_out_hooked
-            grads[f'layer{li}.mlp_fc2'] += np.outer(dfc2_out, lf['relu_out_hooked'])
-            drelu_out_hooked = state_dict[f'layer{li}.mlp_fc2'].T @ dfc2_out
+        # FC2 + residual: (n, d)
+        fc2 = relu @ sd[f'layer{li}.mlp_fc2'].T
+        X = fc2 + X_res_mlp
 
-            # MLP hidden hook backward: pass gradient through
-            drelu_out = drelu_out_hooked  # hooks don't affect backward in this implementation
+        if hooks.has(f'post_mlp.{li}'):
+            for i in range(n):
+                X[i] = hooks.apply(f'post_mlp.{li}', X[i])
 
-            # ReLU backward
-            dfc1_out = drelu_out * lf['relu_mask']
+        lf['X_after_mlp'] = X.copy()
 
-            # FC1: fc1_out = mlp_fc1 @ x_normed_mlp
-            grads[f'layer{li}.mlp_fc1'] += np.outer(dfc1_out, lf['x_normed_mlp'])
-            dx_normed_mlp = state_dict[f'layer{li}.mlp_fc1'].T @ dfc1_out
+        if capture_state:
+            for i in range(n):
+                snapshots[i]['layers'][-1]['post_mlp_residual'] = X[i].tolist()
 
-            # RMSNorm backward (before MLP)
-            dx_mlp_norm = _rmsnorm_backward(
-                dx_normed_mlp, lf['x_before_mlp_norm'], lf['scale_mlp'])
+        fwd_layers.append(lf)
 
-            # Residual add
-            dx = dx_mlp_norm + dx_residual_mlp
+    # Final logits: (n, vocab)
+    logits = X @ sd['lm_head'].T
 
-            # --- Attention backward ---
-            # post_attn hook: same as post_mlp
-            dx_residual_attn = dx.copy()
-            dx_proj_attn = dx.copy()
+    if hooks.has('logits'):
+        for i in range(n):
+            logits[i] = hooks.apply('logits', logits[i])
 
-            # Output projection: x_proj = attn_wo @ x_attn
-            grads[f'layer{li}.attn_wo'] += np.outer(dx_proj_attn, lf['x_attn'])
-            dx_attn = state_dict[f'layer{li}.attn_wo'].T @ dx_proj_attn
+    # Softmax + cross-entropy loss
+    probs = _softmax(logits)  # (n, vocab)
+    per_position_losses = [-math.log(probs[i, target_ids[i]] + 1e-10) for i in range(n)]
+    loss = sum(per_position_losses) / n
 
-            # Multi-head attention backward
-            dq = np.zeros(n_embd)
-            # dk and dv for the CURRENT position only (we don't backprop into cached KV)
-            dk_cur = np.zeros(n_embd)
-            dv_cur = np.zeros(n_embd)
+    # ---- BACKWARD PASS (all positions at once) ----
 
-            for h in range(n_head):
-                hs_h = h * head_dim
-                he_h = hs_h + head_dim
-                hf = lf['heads'][h]
+    # dlogits: (n, vocab)
+    dlogits = probs.copy()
+    for i in range(n):
+        dlogits[i, target_ids[i]] -= 1.0
+    dlogits /= n
 
-                dhead_out = dx_attn[hs_h:he_h]  # (head_dim,)
+    # lm_head
+    grads['lm_head'] += dlogits.T @ X  # (vocab, d)
+    dX = dlogits @ sd['lm_head']       # (n, d)
 
-                # head_out = v_h.T @ attn_weights
-                # dv_h = attn_weights[:, None] * dhead_out[None, :]  (T, head_dim)
-                # dattn_weights = v_h @ dhead_out  (T,)
-                dattn_weights = hf['v_h'] @ dhead_out  # (T,)
-                # Only accumulate dv for current position (last in cache)
-                dv_cur[hs_h:he_h] += hf['attn_weights'][-1] * dhead_out
+    # Backward through layers
+    for li in range(n_layer - 1, -1, -1):
+        lf = fwd_layers[li]
 
-                # Softmax backward
-                # dattn_logits = attn_weights * (dattn_weights - sum(attn_weights * dattn_weights))
-                aw = hf['attn_weights']
-                s = np.sum(aw * dattn_weights)
-                dattn_logits = aw * (dattn_weights - s)  # (T,)
+        # --- MLP backward ---
+        dX_res_mlp = dX.copy()
 
-                # attn_logits = k_h @ q_h / sqrt(head_dim)
-                scale_attn = 1.0 / np.sqrt(head_dim)
-                dq_h = (hf['k_h'].T @ dattn_logits) * scale_attn  # (head_dim,)
-                # dk for current position (last row of k_h)
-                dk_cur[hs_h:he_h] += dattn_logits[-1] * hf['q_h'] * scale_attn
+        # FC2: fc2 = relu_hooked @ Wfc2.T
+        grads[f'layer{li}.mlp_fc2'] += dX.T @ lf['relu_hooked']  # (d, 4d)
+        drelu = dX @ sd[f'layer{li}.mlp_fc2']                     # (n, 4d)
 
-                dq[hs_h:he_h] = dq_h
+        # ReLU backward
+        dfc1 = drelu * lf['relu_mask']  # (n, 4d)
 
-            # Q, K, V projections backward
-            # q = wq @ x_normed, k = wk @ x_normed, v = wv @ x_normed
-            x_normed_attn = lf['x_normed_attn']
-            grads[f'layer{li}.attn_wq'] += np.outer(dq, x_normed_attn)
-            grads[f'layer{li}.attn_wk'] += np.outer(dk_cur, x_normed_attn)
-            grads[f'layer{li}.attn_wv'] += np.outer(dv_cur, x_normed_attn)
+        # FC1: fc1 = X_normed_mlp @ Wfc1.T
+        grads[f'layer{li}.mlp_fc1'] += dfc1.T @ lf['X_normed_mlp']  # (4d, d)
+        dX_normed_mlp = dfc1 @ sd[f'layer{li}.mlp_fc1']              # (n, d)
 
-            dx_normed_attn = (state_dict[f'layer{li}.attn_wq'].T @ dq +
-                              state_dict[f'layer{li}.attn_wk'].T @ dk_cur +
-                              state_dict[f'layer{li}.attn_wv'].T @ dv_cur)
+        # RMSNorm backward (before MLP)
+        dX = _rmsnorm_backward_batch(dX_normed_mlp, lf['X_pre_mlp']) + dX_res_mlp
 
-            # RMSNorm backward (before attention)
-            dx_attn_norm = _rmsnorm_backward(
-                dx_normed_attn, lf['x_before_attn_norm'], lf['scale_attn'])
+        # --- Attention backward ---
+        dX_res_attn = dX.copy()
 
-            # Residual add
-            dx = dx_attn_norm + dx_residual_attn
+        # Output projection: X_proj = X_attn @ Wo.T
+        grads[f'layer{li}.attn_wo'] += dX.T @ lf['X_attn']  # (d, d)
+        dX_attn = dX @ sd[f'layer{li}.attn_wo']               # (n, d)
 
-        # Pre-norm backward
-        dx_pre = _rmsnorm_backward(dx, fwd['x_after_emb'], fwd['scale0'])
+        # Reshape to multi-head: (nh, n, hd)
+        dX_attn_h = dX_attn.reshape(n, n_head, head_dim).transpose(1, 0, 2)
 
-        # Embedding gradients
-        grads['wte'][token_id] += dx_pre
-        grads['wpe'][pos_id] += dx_pre
+        attn_w = lf['attn_w']   # (nh, n, n)
+        V_t = lf['V'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
+        Q_t = lf['Q'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
+        K_t = lf['K'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
 
-    loss = total_loss / n
+        # dattn_w: (nh, n, n) = (nh, n, hd) @ (nh, hd, n)
+        dattn_w = np.einsum('hid,hjd->hij', dX_attn_h, V_t)
+        dV_t = np.einsum('hij,hid->hjd', attn_w, dX_attn_h)  # (nh, n, hd)
+
+        # Softmax backward: dscores = attn_w * (dattn_w - sum(attn_w * dattn_w))
+        s = np.sum(attn_w * dattn_w, axis=-1, keepdims=True)  # (nh, n, 1)
+        dscores = attn_w * (dattn_w - s)
+        dscores[:, ~causal] = 0  # mask
+
+        scale_attn = 1.0 / np.sqrt(head_dim)
+        dQ_t = np.einsum('hij,hjd->hid', dscores, K_t) * scale_attn
+        dK_t = np.einsum('hji,hjd->hid', dscores, Q_t) * scale_attn
+
+        # Reshape back to (n, d)
+        dQ = dQ_t.transpose(1, 0, 2).reshape(n, n_embd)
+        dK = dK_t.transpose(1, 0, 2).reshape(n, n_embd)
+        dV = dV_t.transpose(1, 0, 2).reshape(n, n_embd)
+
+        # QKV projection backward
+        X_na = lf['X_normed_attn']
+        grads[f'layer{li}.attn_wq'] += dQ.T @ X_na
+        grads[f'layer{li}.attn_wk'] += dK.T @ X_na
+        grads[f'layer{li}.attn_wv'] += dV.T @ X_na
+
+        dX_normed_attn = (dQ @ sd[f'layer{li}.attn_wq'] +
+                          dK @ sd[f'layer{li}.attn_wk'] +
+                          dV @ sd[f'layer{li}.attn_wv'])
+
+        # RMSNorm backward (before attention)
+        dX = _rmsnorm_backward_batch(dX_normed_attn, lf['X_pre_attn']) + dX_res_attn
+
+    # Pre-norm backward
+    dX = _rmsnorm_backward_batch(dX, X_pre)
+
+    # Embedding gradients
+    for i in range(n):
+        grads['wte'][token_ids[i]] += dX[i]
+        grads['wpe'][i] += dX[i]
+
     return loss, per_position_losses, grads, snapshots
 
 
-def _rmsnorm_backward(dout, x_in, scale):
+def _rmsnorm_backward_batch(dout, x_in):
     """
-    Backward through rmsnorm.
-    Forward: y = x * scale, where scale = 1/sqrt(mean(x^2) + eps)
+    Backward through rmsnorm for batch (n, d) inputs.
+    Forward: y = x / sqrt(mean(x^2) + eps)
     """
-    n = len(x_in)
-    # dy/dx_i = scale * (delta_ij - x_i * x_j / (n * (ms + eps)))
-    # = scale * dout_i - scale * x_i * sum(dout_j * x_j) / (n * (ms + eps))
-    # Simplify: dx = scale * dout - scale^3 * x * (x . dout) / n
-    xdot = np.dot(x_in, dout)
-    dx = scale * dout - (scale ** 3) * x_in * xdot / n
-    return dx
+    d = x_in.shape[-1]
+    ms = np.mean(x_in * x_in, axis=-1, keepdims=True)  # (n, 1)
+    scale = 1.0 / np.sqrt(ms + 1e-5)
+    xdot = np.sum(x_in * dout, axis=-1, keepdims=True)  # (n, 1)
+    return scale * dout - (scale ** 3) * x_in * xdot / d
 
 
 # ============================================================================
