@@ -13,7 +13,9 @@ from dataclasses import dataclass, field
 
 from morphogpt_np import (
     Hooks, Probe, TrainConfig,
-    make_config, init_state_dict, load_dataset, train, generate
+    make_config, init_state_dict, load_dataset, train, generate,
+    train_with_state, get_layer_keys, reset_layer, transplant_layer,
+    assemble_chimera, copy_state_dict, tokenize, _forward_backward,
 )
 from perturbations_np import (
     make_zero_head, make_freeze_params,
@@ -29,7 +31,10 @@ from perturbations_np import (
     make_threatening_drive, make_round_robin_updates,
     make_stop_gradient_grad_hook,
     make_partial_stop_gradient_grad_hook,
+    freeze_specific_heads, unfreeze_heads,
+    make_gradual_noisy_gradients, make_noisy_gradients_scheduled,
 )
+import numpy as np
 from metrics import (
     summarize_probe, dg_index, robustness_curve_with_dg,
     dg_damage_regression, trajectory_envelope, compare_trajectory_envelopes,
@@ -37,6 +42,8 @@ from metrics import (
     head_contribution_evolution,
     cognitive_light_cone, collective_light_cone,
     goal_alignment_score, swarming_index,
+    recovery_overshoot, regeneration_completeness,
+    transplant_advantage, dual_objective_equilibrium,
 )
 
 
@@ -403,7 +410,7 @@ def save_results(results, filepath):
 # Experiment 1: Head Freezing Robustness Curve
 # ============================================================================
 
-def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
+def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 1: Head Freezing Robustness Curve")
     print("=" * 60)
@@ -434,7 +441,7 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
 
     # Save results
     save_results(all_results, os.path.join(os.path.dirname(__file__),
-                 'results', 'experiment1_head_freezing.json'))
+                 'results', f'experiment1_head_freezing{result_suffix}.json'))
 
     # Organize and print
     results_by_level = {}
@@ -551,7 +558,7 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
 # Experiment 2: Cell-View GPT
 # ============================================================================
 
-def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4):
+def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 2: Cell-View GPT (Stop-Gradient)")
     print("=" * 60)
@@ -573,7 +580,7 @@ def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4):
     results = run_sweep(configs, docs, uchars, BOS, vocab_size)
 
     save_results(results, os.path.join(os.path.dirname(__file__),
-                 'results', 'experiment2_cell_view.json'))
+                 'results', f'experiment2_cell_view{result_suffix}.json'))
 
     print("\n" + "=" * 60)
     print("RESULTS: Cell-View vs Baseline")
@@ -594,7 +601,7 @@ def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4):
 # Experiment 3: Gradient Degradation
 # ============================================================================
 
-def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4):
+def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 3: Gradient Degradation")
     print("=" * 60)
@@ -633,7 +640,7 @@ def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4):
     results = run_sweep(configs, docs, uchars, BOS, vocab_size)
 
     save_results(results, os.path.join(os.path.dirname(__file__),
-                 'results', 'experiment3_gradient_degradation.json'))
+                 'results', f'experiment3_gradient_degradation{result_suffix}.json'))
 
     print("\n" + "=" * 60)
     print("RESULTS: Gradient Degradation")
@@ -653,7 +660,7 @@ def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4):
 # Experiment 4: Vision Radius Sweep
 # ============================================================================
 
-def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4):
+def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 4: Vision Radius Sweep")
     print("=" * 60)
@@ -679,7 +686,7 @@ def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4):
     all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
 
     save_results(all_results, os.path.join(os.path.dirname(__file__),
-                 'results', 'experiment4_vision_radius.json'))
+                 'results', f'experiment4_vision_radius{result_suffix}.json'))
 
     results_by_window = {}
     for result in all_results:
@@ -723,7 +730,7 @@ def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4):
 # Experiment 5: Communication Topology
 # ============================================================================
 
-def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4):
+def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 5: Communication Topology")
     print("=" * 60)
@@ -762,7 +769,7 @@ def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4):
     all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
 
     save_results(all_results, os.path.join(os.path.dirname(__file__),
-                 'results', 'experiment5_communication.json'))
+                 'results', f'experiment5_communication{result_suffix}.json'))
 
     print("\n" + "=" * 60)
     print("RESULTS: Communication Topology")
@@ -788,7 +795,7 @@ def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4):
 # Experiment 6: Courage vs. Caution
 # ============================================================================
 
-def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4):
+def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 6: Courage vs. Caution")
     print("=" * 60)
@@ -827,7 +834,7 @@ def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4):
     all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
 
     save_results(all_results, os.path.join(os.path.dirname(__file__),
-                 'results', 'experiment6_courage_caution.json'))
+                 'results', f'experiment6_courage_caution{result_suffix}.json'))
 
     print("\n" + "=" * 60)
     print("RESULTS: Courage vs. Caution")
@@ -856,5 +863,758 @@ def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4):
         if group and group[0]['probe'].head_outputs:
             si = swarming_index(group[0]['probe'])
             print(f"  {name:>25}: swarm={si['swarming_ratio']:.4f}")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 7: Recovery After Damage
+# ============================================================================
+
+def experiment_recovery(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test whether a model recovers after transient damage, and whether it overshoots.
+
+    Phase 1: Normal training (num_steps steps)
+    Phase 2: Damage — freeze 8 heads (num_steps//2 steps)
+    Phase 3: Recovery — unfreeze all (num_steps steps)
+    Control: Undamaged training for the same total duration
+    """
+    print("=" * 60)
+    print("EXPERIMENT 7: Recovery After Damage")
+    print("=" * 60)
+
+    docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    phase1_steps = num_steps
+    phase2_steps = num_steps // 2
+    phase3_steps = num_steps
+    total = phase1_steps + phase2_steps + phase3_steps
+    num_freeze = 8
+
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+
+        # --- Recovery condition ---
+        sd, params = init_state_dict(config, seed=seed)
+        tc1 = TrainConfig(num_steps=phase1_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+
+        # Phase 1: Normal training
+        p1, m, v = train_with_state(
+            sd, params, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+
+        pre_damage_loss = p1.losses[-1][1] if p1.losses else 0
+
+        # Phase 2: Damage (freeze 8 heads)
+        hooks = Hooks()
+        rng = random.Random(seed + 1000)
+        all_heads = [(li, h) for li in range(n_layer) for h in range(4)]
+        rng.shuffle(all_heads)
+        freeze_specific_heads(hooks, all_heads[:num_freeze], config)
+
+        tc2 = TrainConfig(num_steps=phase2_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p2, m, v = train_with_state(
+            sd, params, config, tc2, docs, uchars, BOS,
+            hooks=hooks, seed=seed, m_buf=m, v_buf=v,
+            start_step=phase1_steps, total_steps=total)
+
+        # Phase 3: Recovery (unfreeze)
+        hooks.clear()
+        tc3 = TrainConfig(num_steps=phase3_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p3, m, v = train_with_state(
+            sd, params, config, tc3, docs, uchars, BOS,
+            seed=seed, m_buf=m, v_buf=v,
+            start_step=phase1_steps + phase2_steps, total_steps=total)
+
+        # Combine trajectory
+        recovery_traj = p1.losses + p2.losses + p3.losses
+
+        # --- Control: undamaged ---
+        sd_c, params_c = init_state_dict(config, seed=seed)
+        tc_c = TrainConfig(num_steps=total, learning_rate=0.01,
+                           print_every=0, detail_level='loss_only')
+        p_c, _, _ = train_with_state(
+            sd_c, params_c, config, tc_c, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+        control_traj = p_c.losses
+
+        # Metrics
+        damage_end = phase1_steps + phase2_steps
+        rec_metrics = recovery_overshoot(control_traj, recovery_traj, damage_end)
+        rec_final = recovery_traj[-1][1] if recovery_traj else 0
+        ctrl_final = control_traj[-1][1] if control_traj else 0
+
+        result = {
+            'seed': seed,
+            'recovery_final_loss': float(rec_final),
+            'control_final_loss': float(ctrl_final),
+            'pre_damage_loss': float(pre_damage_loss),
+            'recovery_time': rec_metrics['recovery_time'],
+            'overshoot': float(rec_metrics['overshoot']),
+            'max_overshoot': float(rec_metrics['max_overshoot']),
+            'final_ratio': float(rec_metrics['final_ratio']),
+        }
+        all_results.append(result)
+        print(f"  recovery={rec_final:.4f} control={ctrl_final:.4f} "
+              f"ratio={rec_metrics['final_ratio']:.4f}")
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment7_recovery{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Recovery After Damage")
+    print("=" * 60)
+
+    rec_finals = [r['recovery_final_loss'] for r in all_results]
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    ratios = [r['final_ratio'] for r in all_results]
+    rec_times = [r['recovery_time'] for r in all_results
+                 if r['recovery_time'] is not None]
+
+    print(f"  Recovery final:  {np.mean(rec_finals):.4f} +/- {np.std(rec_finals):.4f}")
+    print(f"  Control final:   {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+    print(f"  Final ratio:     {np.mean(ratios):.4f}")
+    if rec_times:
+        print(f"  Recovery time:   {np.mean(rec_times):.0f} +/- {np.std(rec_times):.0f} steps "
+              f"({len(rec_times)}/{num_reps} recovered)")
+    else:
+        print(f"  No runs recovered to baseline level")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 8: Chimera Assembly
+# ============================================================================
+
+def experiment_chimera(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Can a model assembled from parts of two separately-trained models learn?
+
+    Train model A and model B independently for num_steps steps.
+    Create chimeras with different layer assignments.
+    Continue training each chimera for num_steps steps.
+    """
+    print("=" * 60)
+    print("EXPERIMENT 8: Chimera Assembly")
+    print("=" * 60)
+
+    docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    # Layer assignments for chimeras (for 4 layers)
+    assignments = {
+        'AABB': {0: 'A', 1: 'A', 2: 'B', 3: 'B'},
+        'ABAB': {0: 'A', 1: 'B', 2: 'A', 3: 'B'},
+        'BBAA': {0: 'B', 1: 'B', 2: 'A', 3: 'A'},
+        'ABBA': {0: 'A', 1: 'B', 2: 'B', 3: 'A'},
+    }
+
+    all_results = []
+
+    for rep in range(num_reps):
+        seed_a = 42 + rep
+        seed_b = 1042 + rep
+        print(f"\n[{rep+1}/{num_reps}] seeds=({seed_a}, {seed_b})")
+
+        # Train model A
+        sd_a, params_a = init_state_dict(config, seed=seed_a)
+        tc = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                         print_every=0, detail_level='loss_only')
+        p_a, _, _ = train_with_state(
+            sd_a, params_a, config, tc, docs, uchars, BOS,
+            seed=seed_a, total_steps=num_steps * 2)
+
+        a_phase1_loss = p_a.losses[-1][1] if p_a.losses else 0
+
+        # Train model B
+        sd_b, params_b = init_state_dict(config, seed=seed_b)
+        p_b, _, _ = train_with_state(
+            sd_b, params_b, config, tc, docs, uchars, BOS,
+            seed=seed_b, total_steps=num_steps * 2)
+
+        b_phase1_loss = p_b.losses[-1][1] if p_b.losses else 0
+
+        # Control: model A continues training
+        sd_ctrl = copy_state_dict(sd_a)
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params_a, config, tc2, docs, uchars, BOS,
+            seed=seed_a, start_step=num_steps, total_steps=num_steps * 2)
+
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        # Create and train chimeras
+        rep_result = {
+            'seed_a': seed_a, 'seed_b': seed_b,
+            'a_phase1_loss': float(a_phase1_loss),
+            'b_phase1_loss': float(b_phase1_loss),
+            'control_final_loss': float(ctrl_final),
+            'chimeras': {},
+        }
+
+        for name, assignment in assignments.items():
+            sd_chi = assemble_chimera(sd_a, sd_b, assignment, config)
+
+            # Measure initial chimera loss
+            tokens = tokenize(docs[0], uchars, BOS)
+            n = min(config['block_size'], len(tokens) - 1)
+            init_loss, _, _, _ = _forward_backward(
+                tokens, n, sd_chi, config, Hooks(), capture_state=False)
+
+            # Train chimera
+            tc_chi = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                                 print_every=0, detail_level='loss_only')
+            p_chi, _, _ = train_with_state(
+                sd_chi, params_a, config, tc_chi, docs, uchars, BOS,
+                seed=seed_a, start_step=num_steps, total_steps=num_steps * 2)
+
+            chi_final = p_chi.losses[-1][1] if p_chi.losses else 0
+
+            rep_result['chimeras'][name] = {
+                'initial_loss': float(init_loss),
+                'final_loss': float(chi_final),
+                'recovery': float((init_loss - chi_final) / max(init_loss, 1e-10)),
+            }
+            print(f"  {name}: init={init_loss:.4f} final={chi_final:.4f}")
+
+        all_results.append(rep_result)
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment8_chimera{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Chimera Assembly")
+    print("=" * 60)
+
+    ctrl_losses = [r['control_final_loss'] for r in all_results]
+    print(f"  Control (A continues): {np.mean(ctrl_losses):.4f} +/- {np.std(ctrl_losses):.4f}")
+
+    for name in assignments:
+        chi_inits = [r['chimeras'][name]['initial_loss'] for r in all_results]
+        chi_finals = [r['chimeras'][name]['final_loss'] for r in all_results]
+        recoveries = [r['chimeras'][name]['recovery'] for r in all_results]
+        print(f"  {name}: init={np.mean(chi_inits):.4f} "
+              f"final={np.mean(chi_finals):.4f}+/-{np.std(chi_finals):.4f} "
+              f"recovery={np.mean(recoveries)*100:.1f}%")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 9: Gradual vs Sudden Damage
+# ============================================================================
+
+def experiment_gradual_vs_sudden(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Does gradual damage exposure build tolerance compared to sudden damage?
+
+    Condition A: No noise (control)
+    Condition B: Sudden noise sigma=0.1 for all steps
+    Condition C: Gradual ramp from sigma=0 to sigma=0.1 over all steps
+    Condition D: Noise only in second half (sudden onset at step num_steps//2)
+    """
+    print("=" * 60)
+    print("EXPERIMENT 9: Gradual vs Sudden Damage")
+    print("=" * 60)
+
+    docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    noise_std = 0.1
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+        rep_result = {'seed': seed, 'conditions': {}}
+
+        tc = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                         print_every=0, detail_level='loss_only')
+
+        # A: Control (no noise)
+        sd_a, params_a = init_state_dict(config, seed=seed)
+        p_a, _, _ = train_with_state(
+            sd_a, params_a, config, tc, docs, uchars, BOS,
+            seed=seed, total_steps=num_steps)
+        rep_result['conditions']['control'] = {
+            'final_loss': float(p_a.losses[-1][1]) if p_a.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_a.losses])),
+        }
+
+        # B: Sudden noise (all steps)
+        sd_b, params_b = init_state_dict(config, seed=seed)
+        gh_b = [make_noisy_gradients(noise_std)]
+        p_b, _, _ = train_with_state(
+            sd_b, params_b, config, tc, docs, uchars, BOS,
+            grad_hooks=gh_b, seed=seed, total_steps=num_steps)
+        rep_result['conditions']['sudden_full'] = {
+            'final_loss': float(p_b.losses[-1][1]) if p_b.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_b.losses])),
+        }
+
+        # C: Gradual ramp
+        sd_c, params_c = init_state_dict(config, seed=seed)
+        gh_c = [make_gradual_noisy_gradients(noise_std, num_steps)]
+        p_c, _, _ = train_with_state(
+            sd_c, params_c, config, tc, docs, uchars, BOS,
+            grad_hooks=gh_c, seed=seed, total_steps=num_steps)
+        rep_result['conditions']['gradual'] = {
+            'final_loss': float(p_c.losses[-1][1]) if p_c.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_c.losses])),
+        }
+
+        # D: Sudden onset at halfway
+        sd_d, params_d = init_state_dict(config, seed=seed)
+        gh_d = [make_noisy_gradients_scheduled(noise_std, start_step=num_steps // 2)]
+        p_d, _, _ = train_with_state(
+            sd_d, params_d, config, tc, docs, uchars, BOS,
+            grad_hooks=gh_d, seed=seed, total_steps=num_steps)
+        rep_result['conditions']['sudden_half'] = {
+            'final_loss': float(p_d.losses[-1][1]) if p_d.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_d.losses])),
+        }
+
+        all_results.append(rep_result)
+        for name, data in rep_result['conditions'].items():
+            print(f"  {name:15s}: final={data['final_loss']:.4f}")
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment9_gradual_vs_sudden{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Gradual vs Sudden Damage")
+    print("=" * 60)
+
+    for cond_name in ['control', 'sudden_full', 'gradual', 'sudden_half']:
+        finals = [r['conditions'][cond_name]['final_loss'] for r in all_results]
+        means = [r['conditions'][cond_name]['mean_loss'] for r in all_results]
+        print(f"  {cond_name:15s}: final={np.mean(finals):.4f}+/-{np.std(finals):.4f}  "
+              f"mean={np.mean(means):.4f}+/-{np.std(means):.4f}")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 10: Regeneration (Layer Reset)
+# ============================================================================
+
+def experiment_regeneration(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Can a model regenerate after a layer is destroyed?
+
+    Phase 1: Normal training (num_steps steps)
+    Phase 2: Reset layer L to random, continue training (num_steps steps)
+    Control: No reset, continue training
+    Test layers: 0 (early), 1 (mid-early), 2 (mid-late), 3 (late)
+    """
+    print("=" * 60)
+    print("EXPERIMENT 10: Regeneration (Layer Reset)")
+    print("=" * 60)
+
+    docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    total = num_steps * 2
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+
+        # Phase 1: Train baseline
+        sd_base, params = init_state_dict(config, seed=seed)
+        tc1 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p1, m_base, v_base = train_with_state(
+            sd_base, params, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+
+        pre_reset_loss = p1.losses[-1][1] if p1.losses else 0
+
+        # Control: continue without reset
+        sd_ctrl = copy_state_dict(sd_base)
+        m_ctrl = {k: v.copy() for k, v in m_base.items()}
+        v_ctrl = {k: v.copy() for k, v in v_base.items()}
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params, config, tc2, docs, uchars, BOS,
+            seed=seed, m_buf=m_ctrl, v_buf=v_ctrl,
+            start_step=num_steps, total_steps=total)
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        rep_result = {
+            'seed': seed,
+            'pre_reset_loss': float(pre_reset_loss),
+            'control_final_loss': float(ctrl_final),
+            'layers': {},
+        }
+
+        # Test each layer
+        for li in range(n_layer):
+            sd_reset = copy_state_dict(sd_base)
+            m_reset = {k: v.copy() for k, v in m_base.items()}
+            v_reset = {k: v.copy() for k, v in v_base.items()}
+
+            # Reset layer li
+            reset_layer(sd_reset, li, config, seed=seed + li * 100,
+                        m_buf=m_reset, v_buf=v_reset)
+
+            # Measure immediate post-reset loss
+            tokens = tokenize(docs[0], uchars, BOS)
+            n = min(config['block_size'], len(tokens) - 1)
+            post_reset_loss, _, _, _ = _forward_backward(
+                tokens, n, sd_reset, config, Hooks(), capture_state=False)
+
+            # Continue training
+            p_regen, _, _ = train_with_state(
+                sd_reset, params, config, tc2, docs, uchars, BOS,
+                seed=seed, m_buf=m_reset, v_buf=v_reset,
+                start_step=num_steps, total_steps=total)
+            regen_final = p_regen.losses[-1][1] if p_regen.losses else 0
+
+            # Regeneration metrics
+            baseline_traj = p_ctrl.losses
+            regen_traj = p_regen.losses
+            regen_metrics = regeneration_completeness(
+                pre_reset_loss, regen_traj, baseline_traj, num_steps)
+
+            rep_result['layers'][str(li)] = {
+                'post_reset_loss': float(post_reset_loss),
+                'regen_final_loss': float(regen_final),
+                'completeness': float(regen_metrics['completeness']),
+                'damage': float(post_reset_loss - pre_reset_loss),
+            }
+            print(f"  L{li}: post_reset={post_reset_loss:.4f} "
+                  f"final={regen_final:.4f} "
+                  f"completeness={regen_metrics['completeness']:.3f}")
+
+        all_results.append(rep_result)
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment10_regeneration{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Regeneration (Layer Reset)")
+    print("=" * 60)
+
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    print(f"  Control final: {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+
+    for li in range(n_layer):
+        damages = [r['layers'][str(li)]['damage'] for r in all_results]
+        finals = [r['layers'][str(li)]['regen_final_loss'] for r in all_results]
+        comps = [r['layers'][str(li)]['completeness'] for r in all_results]
+        print(f"  Layer {li}: damage={np.mean(damages):.4f} "
+              f"final={np.mean(finals):.4f}+/-{np.std(finals):.4f} "
+              f"completeness={np.mean(comps):.3f}")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 11: Transplantation
+# ============================================================================
+
+def experiment_transplantation(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Is a transplanted layer accepted better than a random reset?
+
+    Train model A and model B for num_steps steps.
+    For each layer L:
+      - Transplant: replace layer L of A with layer L of B, continue training
+      - Random: reset layer L of A to random, continue training
+      - Control: A continues without modification
+    """
+    print("=" * 60)
+    print("EXPERIMENT 11: Transplantation")
+    print("=" * 60)
+
+    docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    total = num_steps * 2
+    all_results = []
+
+    for rep in range(num_reps):
+        seed_a = 42 + rep
+        seed_b = 1042 + rep
+        print(f"\n[{rep+1}/{num_reps}] seeds=({seed_a}, {seed_b})")
+
+        # Train model A
+        sd_a, params_a = init_state_dict(config, seed=seed_a)
+        tc1 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_a, m_a, v_a = train_with_state(
+            sd_a, params_a, config, tc1, docs, uchars, BOS,
+            seed=seed_a, total_steps=total)
+
+        # Train model B
+        sd_b, params_b = init_state_dict(config, seed=seed_b)
+        p_b, _, _ = train_with_state(
+            sd_b, params_b, config, tc1, docs, uchars, BOS,
+            seed=seed_b, total_steps=total)
+
+        a_loss = p_a.losses[-1][1] if p_a.losses else 0
+
+        # Control: A continues
+        sd_ctrl = copy_state_dict(sd_a)
+        m_ctrl = {k: v.copy() for k, v in m_a.items()}
+        v_ctrl = {k: v.copy() for k, v in v_a.items()}
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params_a, config, tc2, docs, uchars, BOS,
+            seed=seed_a, m_buf=m_ctrl, v_buf=v_ctrl,
+            start_step=num_steps, total_steps=total)
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        rep_result = {
+            'seed_a': seed_a, 'seed_b': seed_b,
+            'a_loss_at_transplant': float(a_loss),
+            'control_final_loss': float(ctrl_final),
+            'layers': {},
+        }
+
+        for li in range(n_layer):
+            # Transplant condition
+            sd_trans = copy_state_dict(sd_a)
+            m_trans = {k: v.copy() for k, v in m_a.items()}
+            v_trans = {k: v.copy() for k, v in v_a.items()}
+            transplant_layer(sd_trans, sd_b, li, m_buf=m_trans, v_buf=v_trans)
+
+            p_trans, _, _ = train_with_state(
+                sd_trans, params_a, config, tc2, docs, uchars, BOS,
+                seed=seed_a, m_buf=m_trans, v_buf=v_trans,
+                start_step=num_steps, total_steps=total)
+            trans_final = p_trans.losses[-1][1] if p_trans.losses else 0
+
+            # Random reset condition
+            sd_rand = copy_state_dict(sd_a)
+            m_rand = {k: v.copy() for k, v in m_a.items()}
+            v_rand = {k: v.copy() for k, v in v_a.items()}
+            reset_layer(sd_rand, li, config, seed=seed_a + li * 100,
+                        m_buf=m_rand, v_buf=v_rand)
+
+            p_rand, _, _ = train_with_state(
+                sd_rand, params_a, config, tc2, docs, uchars, BOS,
+                seed=seed_a, m_buf=m_rand, v_buf=v_rand,
+                start_step=num_steps, total_steps=total)
+            rand_final = p_rand.losses[-1][1] if p_rand.losses else 0
+
+            # Metrics
+            ta = transplant_advantage(trans_final, rand_final, ctrl_final)
+
+            rep_result['layers'][str(li)] = {
+                'transplant_final': float(trans_final),
+                'random_final': float(rand_final),
+                'transplant_gap': float(ta['transplant_gap']),
+                'transplant_vs_baseline': float(ta['transplant_vs_baseline']),
+                'random_vs_baseline': float(ta['random_vs_baseline']),
+            }
+            print(f"  L{li}: trans={trans_final:.4f} rand={rand_final:.4f} "
+                  f"gap={ta['transplant_gap']:.4f}")
+
+        all_results.append(rep_result)
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment11_transplantation{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Transplantation")
+    print("=" * 60)
+
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    print(f"  Control final: {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+
+    for li in range(n_layer):
+        trans_finals = [r['layers'][str(li)]['transplant_final'] for r in all_results]
+        rand_finals = [r['layers'][str(li)]['random_final'] for r in all_results]
+        gaps = [r['layers'][str(li)]['transplant_gap'] for r in all_results]
+        print(f"  Layer {li}: transplant={np.mean(trans_finals):.4f} "
+              f"random={np.mean(rand_finals):.4f} "
+              f"gap={np.mean(gaps):.4f}+/-{np.std(gaps):.4f}")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 12: Competing Objectives
+# ============================================================================
+
+def experiment_competing_objectives(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Can layers specialize when facing conflicting gradient signals?
+
+    Phase 1: Normal training (num_steps steps)
+    Phase 2: Layers 0-1 get normal gradients, layers 2-3 get negated gradients
+             (num_steps steps)
+    Control: Normal training for full duration
+
+    Measures whether early layers compensate for adversarial late layers.
+    """
+    print("=" * 60)
+    print("EXPERIMENT 12: Competing Objectives")
+    print("=" * 60)
+
+    docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    total = num_steps * 2
+    layer_comps = ['attn_wq', 'attn_wk', 'attn_wv', 'attn_wo', 'mlp_fc1', 'mlp_fc2']
+
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+
+        # --- Control: full normal training ---
+        sd_ctrl, params_ctrl = init_state_dict(config, seed=seed)
+        tc_full = TrainConfig(num_steps=total, learning_rate=0.01,
+                              print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params_ctrl, config, tc_full, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        # --- Competing condition ---
+        sd, params = init_state_dict(config, seed=seed)
+        tc1 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+
+        # Phase 1: Normal training
+        p1, m, v = train_with_state(
+            sd, params, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+        phase1_final = p1.losses[-1][1] if p1.losses else 0
+
+        # Phase 2: Adversarial layers 2-3
+        adversarial_layers = [2, 3] if n_layer >= 4 else [n_layer - 1]
+
+        def make_negate_hook(adv_layers):
+            def negate_layers_hook(grads, state_dict, step):
+                for li in adv_layers:
+                    for comp in layer_comps:
+                        key = f'layer{li}.{comp}'
+                        if key in grads:
+                            grads[key] = -grads[key]
+            return negate_layers_hook
+
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p2, _, _ = train_with_state(
+            sd, params, config, tc2, docs, uchars, BOS,
+            grad_hooks=[make_negate_hook(adversarial_layers)], seed=seed,
+            m_buf=m, v_buf=v,
+            start_step=num_steps, total_steps=total)
+        compete_final = p2.losses[-1][1] if p2.losses else 0
+
+        # --- Freeze-adversarial condition (freeze layers 2-3 instead) ---
+        sd_f, params_f = init_state_dict(config, seed=seed)
+        p_f1, m_f, v_f = train_with_state(
+            sd_f, params_f, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+
+        def make_freeze_hook(freeze_layers):
+            def freeze_layers_hook(grads, state_dict, step):
+                for li in freeze_layers:
+                    for comp in layer_comps:
+                        key = f'layer{li}.{comp}'
+                        if key in grads:
+                            grads[key][:] = 0
+            return freeze_layers_hook
+
+        p_f2, _, _ = train_with_state(
+            sd_f, params_f, config, tc2, docs, uchars, BOS,
+            grad_hooks=[make_freeze_hook(adversarial_layers)], seed=seed,
+            m_buf=m_f, v_buf=v_f,
+            start_step=num_steps, total_steps=total)
+        freeze_final = p_f2.losses[-1][1] if p_f2.losses else 0
+
+        result = {
+            'seed': seed,
+            'control_final_loss': float(ctrl_final),
+            'phase1_final_loss': float(phase1_final),
+            'competing_final_loss': float(compete_final),
+            'freeze_final_loss': float(freeze_final),
+            'compete_vs_control': float((compete_final - ctrl_final) / max(ctrl_final, 1e-10) * 100),
+            'freeze_vs_control': float((freeze_final - ctrl_final) / max(ctrl_final, 1e-10) * 100),
+        }
+        all_results.append(result)
+        print(f"  ctrl={ctrl_final:.4f} compete={compete_final:.4f} "
+              f"freeze={freeze_final:.4f}")
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment12_competing_objectives{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Competing Objectives")
+    print("=" * 60)
+
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    compete_finals = [r['competing_final_loss'] for r in all_results]
+    freeze_finals = [r['freeze_final_loss'] for r in all_results]
+
+    print(f"  Control:     {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+    print(f"  Competing:   {np.mean(compete_finals):.4f} +/- {np.std(compete_finals):.4f}")
+    print(f"  Freeze L2-3: {np.mean(freeze_finals):.4f} +/- {np.std(freeze_finals):.4f}")
+
+    compete_pct = [r['compete_vs_control'] for r in all_results]
+    freeze_pct = [r['freeze_vs_control'] for r in all_results]
+    print(f"  Competing vs control: {np.mean(compete_pct):+.1f}%")
+    print(f"  Freeze vs control:    {np.mean(freeze_pct):+.1f}%")
 
     return all_results

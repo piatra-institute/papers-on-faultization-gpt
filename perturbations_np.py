@@ -448,6 +448,58 @@ def freeze_random_heads(hooks, config, num_heads, rng=None):
     return frozen
 
 
+def freeze_specific_heads(hooks, head_list, config):
+    """Freeze a specific list of (layer, head) tuples. Returns the list."""
+    head_dim = config['head_dim']
+    for li, h in head_list:
+        name, fn = make_zero_head(li, h, head_dim)
+        hooks.register(name, fn)
+    return head_list
+
+
+def unfreeze_heads(hooks, head_list):
+    """Remove freeze hooks for specific heads."""
+    for li, h in head_list:
+        hooks.clear(f'head_out.{li}.{h}')
+
+
+def make_gradual_noisy_gradients(max_noise_std, ramp_steps):
+    """Gradient noise that linearly ramps from 0 to max_noise_std."""
+    def grad_hook(grads, state_dict, step):
+        intensity = min(1.0, step / max(1, ramp_steps)) * max_noise_std
+        if intensity > 0:
+            for k in grads:
+                grads[k] = grads[k] + np.random.randn(*grads[k].shape) * intensity
+    return grad_hook
+
+
+def make_noisy_gradients_scheduled(noise_std, start_step=0, end_step=float('inf')):
+    """Gradient noise applied only within [start_step, end_step]."""
+    def grad_hook(grads, state_dict, step):
+        if start_step <= step <= end_step:
+            for k in grads:
+                grads[k] = grads[k] + np.random.randn(*grads[k].shape) * noise_std
+    return grad_hook
+
+
+def make_layer_selective_gradients(forward_layers, backward_layers, config):
+    """
+    Zero gradients for layers NOT in the active set.
+    forward_layers: list of layer indices that receive forward-objective gradients.
+    backward_layers: list of layer indices that receive backward-objective gradients.
+    This is used for the competing objectives experiment.
+    """
+    def grad_hook(grads, state_dict, step):
+        active = set(forward_layers) | set(backward_layers)
+        for li in range(config['n_layer']):
+            if li not in active:
+                for comp in ['attn_wq', 'attn_wk', 'attn_wv', 'attn_wo', 'mlp_fc1', 'mlp_fc2']:
+                    key = f'layer{li}.{comp}'
+                    if key in grads:
+                        grads[key][:] = 0
+    return grad_hook
+
+
 def apply_stop_gradient_all(hooks, config, grad_hooks_list):
     """Apply stop-gradient at every layer boundary.
     Registers forward hooks AND adds grad_hooks to zero earlier-layer grads.

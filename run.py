@@ -16,13 +16,21 @@ Usage:
     uv run run.py experiment4    # Vision radius sweep (chess paper)
     uv run run.py experiment5    # Communication topology (chess paper)
     uv run run.py experiment6    # Courage vs. caution (chess paper)
+    uv run run.py experiment7    # Recovery after damage
+    uv run run.py experiment8    # Chimera assembly
+    uv run run.py experiment9    # Gradual vs sudden damage
+    uv run run.py experiment10   # Regeneration (layer reset)
+    uv run run.py experiment11   # Transplantation
+    uv run run.py experiment12   # Competing objectives
     uv run run.py analyze1       # Analyze experiment 1 results (plots + tables)
     uv run run.py analyze2       # Analyze experiment 2 results (plots + tables)
     uv run run.py analyze3       # Analyze experiment 3 results (plots + tables)
     uv run run.py analyze4       # Analyze experiment 4 results (plots + tables)
     uv run run.py analyze5       # Analyze experiment 5 results (plots + tables)
     uv run run.py analyze6       # Analyze experiment 6 results (plots + tables)
-    uv run run.py all            # Run all experiments
+    uv run run.py all            # Run all experiments (1-6)
+    uv run run.py all2           # Run new experiments (7-12)
+    uv run run.py n300           # Run ALL 12 experiments at n=300
 """
 
 import sys
@@ -362,52 +370,88 @@ def trajectory():
                 print(f"  frozen L{fh[0]}H{fh[1]} -> compensated by: {comp_str}")
 
 
-def experiment1(num_reps=3, num_steps=200):
+def experiment1(num_reps=3, num_steps=200, result_suffix=''):
     """Head freezing robustness curve."""
     from experiments_np import experiment_head_freezing, save_results
     os.makedirs('results', exist_ok=True)
-    results = experiment_head_freezing(num_reps=num_reps, num_steps=num_steps)
-    save_results(results['all_results'], 'results/head_freezing.json')
+    results = experiment_head_freezing(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    save_results(results['all_results'], f'results/head_freezing{result_suffix}.json')
 
 
-def experiment2(num_reps=3, num_steps=200):
+def experiment2(num_reps=3, num_steps=200, result_suffix=''):
     """Cell-view GPT."""
     from experiments_np import experiment_cell_view, save_results
     os.makedirs('results', exist_ok=True)
-    results = experiment_cell_view(num_reps=num_reps, num_steps=num_steps)
-    save_results(results, 'results/cell_view.json')
+    results = experiment_cell_view(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    save_results(results, f'results/cell_view{result_suffix}.json')
 
 
-def experiment3(num_reps=3, num_steps=200):
+def experiment3(num_reps=3, num_steps=200, result_suffix=''):
     """Gradient degradation."""
     from experiments_np import experiment_gradient_degradation, save_results
     os.makedirs('results', exist_ok=True)
-    results = experiment_gradient_degradation(num_reps=num_reps, num_steps=num_steps)
-    save_results(results, 'results/gradient_degradation.json')
+    results = experiment_gradient_degradation(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    save_results(results, f'results/gradient_degradation{result_suffix}.json')
 
 
-def experiment4(num_reps=3, num_steps=200):
+def experiment4(num_reps=3, num_steps=200, result_suffix=''):
     """Vision radius sweep."""
     from experiments_np import experiment_vision_radius, save_results
     os.makedirs('results', exist_ok=True)
-    results = experiment_vision_radius(num_reps=num_reps, num_steps=num_steps)
-    save_results(results['all_results'], 'results/vision_radius.json')
+    results = experiment_vision_radius(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    save_results(results['all_results'], f'results/vision_radius{result_suffix}.json')
 
 
-def experiment5(num_reps=3, num_steps=200):
+def experiment5(num_reps=3, num_steps=200, result_suffix=''):
     """Communication topology."""
     from experiments_np import experiment_communication_topology, save_results
     os.makedirs('results', exist_ok=True)
-    results = experiment_communication_topology(num_reps=num_reps, num_steps=num_steps)
-    save_results(results, 'results/communication_topology.json')
+    results = experiment_communication_topology(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    save_results(results, f'results/communication_topology{result_suffix}.json')
 
 
-def experiment6(num_reps=3, num_steps=200):
+def experiment6(num_reps=3, num_steps=200, result_suffix=''):
     """Courage vs. caution."""
     from experiments_np import experiment_courage_caution, save_results
     os.makedirs('results', exist_ok=True)
-    results = experiment_courage_caution(num_reps=num_reps, num_steps=num_steps)
-    save_results(results, 'results/courage_caution.json')
+    results = experiment_courage_caution(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    save_results(results, f'results/courage_caution{result_suffix}.json')
+
+
+def experiment7(num_reps=3, num_steps=200, result_suffix=''):
+    """Recovery after damage."""
+    from experiments_np import experiment_recovery
+    experiment_recovery(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+
+
+def experiment8(num_reps=3, num_steps=200, result_suffix=''):
+    """Chimera assembly."""
+    from experiments_np import experiment_chimera
+    experiment_chimera(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+
+
+def experiment9(num_reps=3, num_steps=200, result_suffix=''):
+    """Gradual vs sudden damage."""
+    from experiments_np import experiment_gradual_vs_sudden
+    experiment_gradual_vs_sudden(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+
+
+def experiment10(num_reps=3, num_steps=200, result_suffix=''):
+    """Regeneration (layer reset)."""
+    from experiments_np import experiment_regeneration
+    experiment_regeneration(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+
+
+def experiment11(num_reps=3, num_steps=200, result_suffix=''):
+    """Transplantation."""
+    from experiments_np import experiment_transplantation
+    experiment_transplantation(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+
+
+def experiment12(num_reps=3, num_steps=200, result_suffix=''):
+    """Competing objectives."""
+    from experiments_np import experiment_competing_objectives
+    experiment_competing_objectives(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
 def analyze1():
@@ -1536,31 +1580,49 @@ def analyze6():
     print()
 
 
-def run_all(num_reps=3, num_steps=200):
-    experiment1(num_reps=num_reps, num_steps=num_steps)
-    experiment2(num_reps=num_reps, num_steps=num_steps)
-    experiment3(num_reps=num_reps, num_steps=num_steps)
-    experiment4(num_reps=num_reps, num_steps=num_steps)
-    experiment5(num_reps=num_reps, num_steps=num_steps)
-    experiment6(num_reps=num_reps, num_steps=num_steps)
+def run_all(num_reps=3, num_steps=200, result_suffix=''):
+    experiment1(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment2(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment3(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment4(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment5(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment6(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+
+
+def run_all2(num_reps=3, num_steps=200, result_suffix=''):
+    experiment7(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment8(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment9(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment10(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment11(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    experiment12(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+
+
+def run_n300(num_reps=300, num_steps=200, result_suffix='_n300'):
+    """Run all 12 experiments at n=300."""
+    run_all(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    run_all2(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
 def _parse_args():
-    """Parse --num-reps and --num-steps from CLI args."""
+    """Parse --num-reps, --num-steps, and --result-suffix from CLI args."""
     num_reps = 3
     num_steps = 200
+    result_suffix = ''
     for i, arg in enumerate(sys.argv):
         if arg == '--num-reps' and i + 1 < len(sys.argv):
             num_reps = int(sys.argv[i + 1])
         elif arg == '--num-steps' and i + 1 < len(sys.argv):
             num_steps = int(sys.argv[i + 1])
-    return num_reps, num_steps
+        elif arg == '--result-suffix' and i + 1 < len(sys.argv):
+            result_suffix = sys.argv[i + 1]
+    return num_reps, num_steps, result_suffix
 
 
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'test'
 
-    # Commands that accept --num-reps / --num-steps
+    # Commands that accept --num-reps / --num-steps / --result-suffix
     experiment_commands = {
         'experiment1': experiment1,
         'experiment2': experiment2,
@@ -1568,7 +1630,15 @@ if __name__ == '__main__':
         'experiment4': experiment4,
         'experiment5': experiment5,
         'experiment6': experiment6,
+        'experiment7': experiment7,
+        'experiment8': experiment8,
+        'experiment9': experiment9,
+        'experiment10': experiment10,
+        'experiment11': experiment11,
+        'experiment12': experiment12,
         'all': run_all,
+        'all2': run_all2,
+        'n300': run_n300,
     }
 
     # Commands that don't
@@ -1585,14 +1655,20 @@ if __name__ == '__main__':
     }
 
     if cmd in experiment_commands:
-        num_reps, num_steps = _parse_args()
-        print(f"Running {cmd} with num_reps={num_reps}, num_steps={num_steps}")
-        experiment_commands[cmd](num_reps=num_reps, num_steps=num_steps)
+        num_reps, num_steps, result_suffix = _parse_args()
+        # n300 has its own defaults; other commands use parsed args
+        if cmd == 'n300':
+            print(f"Running all 12 experiments at n=300")
+            experiment_commands[cmd]()
+        else:
+            suffix_msg = f", result_suffix='{result_suffix}'" if result_suffix else ''
+            print(f"Running {cmd} with num_reps={num_reps}, num_steps={num_steps}{suffix_msg}")
+            experiment_commands[cmd](num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
     elif cmd in other_commands:
         other_commands[cmd]()
     else:
         all_commands = {**experiment_commands, **other_commands}
         print(f"Unknown command: {cmd}")
         print(f"Available: {', '.join(all_commands.keys())}")
-        print(f"\nExperiment commands accept: --num-reps N --num-steps N")
+        print(f"\nExperiment commands accept: --num-reps N --num-steps N --result-suffix SUFFIX")
         sys.exit(1)

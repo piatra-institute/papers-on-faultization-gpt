@@ -775,6 +775,154 @@ def train(state_dict, params, config, train_config, docs, uchars, BOS,
     return probe
 
 
+def train_with_state(state_dict, params, config, train_config, docs, uchars, BOS,
+                     hooks=None, probe=None, grad_hooks=None, seed=42,
+                     m_buf=None, v_buf=None, start_step=0, total_steps=None):
+    """
+    Like train() but supports multi-phase training.
+    Accepts/returns Adam optimizer state (m_buf, v_buf).
+    Returns (probe, m_buf, v_buf).
+    """
+    tc = train_config
+
+    if hooks is None:
+        hooks = Hooks()
+    if probe is None:
+        probe = Probe(detail_level=tc.detail_level)
+    rng = random.Random(seed)
+
+    doc_order = list(range(len(docs)))
+    rng.shuffle(doc_order)
+    # Advance RNG to match start_step position
+    for _ in range(start_step):
+        rng.random()
+
+    if m_buf is None:
+        m_buf = {k: np.zeros_like(v) for k, v in state_dict.items()}
+    if v_buf is None:
+        v_buf = {k: np.zeros_like(v) for k, v in state_dict.items()}
+
+    if total_steps is None:
+        total_steps = start_step + tc.num_steps
+
+    block_size = config['block_size']
+
+    for local_step in range(tc.num_steps):
+        global_step = start_step + local_step
+        hooks.step = global_step
+
+        doc_idx = doc_order[(global_step) % len(doc_order)]
+        doc = docs[doc_idx]
+        tokens = tokenize(doc, uchars, BOS)
+        n = min(block_size, len(tokens) - 1)
+
+        capture_this_step = (
+            probe.detail_level != 'loss_only'
+            and global_step % max(1, probe.record_interval) == 0
+        )
+
+        loss, per_position_losses, grads, snapshots = _forward_backward(
+            tokens, n, state_dict, config, hooks, capture_state=capture_this_step
+        )
+
+        if capture_this_step:
+            probe.record_step(global_step, loss, per_position_losses, snapshots)
+        else:
+            probe.record_loss(global_step, loss)
+
+        if grad_hooks:
+            for gh in grad_hooks:
+                gh(grads, state_dict, global_step)
+
+        if global_step % max(1, probe.record_interval) == 0:
+            _record_grad_norms(probe, grads, config, global_step)
+
+        lr_t = tc.learning_rate * (1 - global_step / total_steps)
+        for k in state_dict:
+            g = grads[k]
+            m_buf[k] = tc.beta1 * m_buf[k] + (1 - tc.beta1) * g
+            v_buf[k] = tc.beta2 * v_buf[k] + (1 - tc.beta2) * g ** 2
+            m_hat = m_buf[k] / (1 - tc.beta1 ** (global_step + 1))
+            v_hat = v_buf[k] / (1 - tc.beta2 ** (global_step + 1))
+            state_dict[k] -= lr_t * m_hat / (np.sqrt(v_hat) + tc.eps_adam)
+
+        if tc.print_every > 0 and (global_step + 1) % tc.print_every == 0:
+            print(f"step {global_step+1:4d}/{total_steps} | loss {loss:.4f}")
+
+        if tc.sample_every > 0 and (global_step + 1) % tc.sample_every == 0:
+            samples = generate(state_dict, config, uchars, BOS,
+                               num_samples=tc.num_samples,
+                               temperature=tc.temperature)
+            probe.record_samples(global_step, samples)
+
+    return probe, m_buf, v_buf
+
+
+# ============================================================================
+# Multi-phase utilities
+# ============================================================================
+
+LAYER_COMPONENTS = ['attn_wq', 'attn_wk', 'attn_wv', 'attn_wo', 'mlp_fc1', 'mlp_fc2']
+
+
+def get_layer_keys(layer_idx):
+    """Return the state_dict keys for a given layer."""
+    return [f'layer{layer_idx}.{comp}' for comp in LAYER_COMPONENTS]
+
+
+def reset_layer(state_dict, layer_idx, config, seed=None, m_buf=None, v_buf=None):
+    """Re-initialize one layer's weights to random. Optionally reset Adam buffers."""
+    rng = np.random.RandomState(seed)
+    std = 0.08
+    n_embd = config['n_embd']
+    keys = get_layer_keys(layer_idx)
+    shapes = {
+        'attn_wq': (n_embd, n_embd), 'attn_wk': (n_embd, n_embd),
+        'attn_wv': (n_embd, n_embd), 'attn_wo': (n_embd, n_embd),
+        'mlp_fc1': (4 * n_embd, n_embd), 'mlp_fc2': (n_embd, 4 * n_embd),
+    }
+    for key in keys:
+        comp = key.split('.')[1]
+        state_dict[key] = rng.randn(*shapes[comp]) * std
+        if m_buf is not None and key in m_buf:
+            m_buf[key] = np.zeros_like(state_dict[key])
+        if v_buf is not None and key in v_buf:
+            v_buf[key] = np.zeros_like(state_dict[key])
+
+
+def transplant_layer(sd_recipient, sd_donor, layer_idx, m_buf=None, v_buf=None):
+    """Copy one layer's weights from donor into recipient. Reset Adam buffers."""
+    for key in get_layer_keys(layer_idx):
+        sd_recipient[key] = sd_donor[key].copy()
+        if m_buf is not None and key in m_buf:
+            m_buf[key] = np.zeros_like(sd_recipient[key])
+        if v_buf is not None and key in v_buf:
+            v_buf[key] = np.zeros_like(sd_recipient[key])
+
+
+def assemble_chimera(sd_a, sd_b, layer_assignment, config):
+    """
+    Build chimera state_dict from two models.
+    layer_assignment: dict {layer_idx: 'A' or 'B'}
+    Shared params (wte, wpe, lm_head) come from model A.
+    """
+    sd = {}
+    # Shared params from A
+    for key in ['wte', 'wpe', 'lm_head']:
+        sd[key] = sd_a[key].copy()
+    # Per-layer params from assignment
+    for li in range(config['n_layer']):
+        source = sd_a if layer_assignment.get(li, 'A') == 'A' else sd_b
+        for key in get_layer_keys(li):
+            sd[key] = source[key].copy()
+    return sd
+
+
+def copy_state_dict(state_dict):
+    """Deep copy a state_dict."""
+    return {k: v.copy() for k, v in state_dict.items()}
+
+
 def _record_grad_norms(probe, grads, config, step):
     for li in range(config['n_layer']):
         for comp in ['attn_wq', 'attn_wk', 'attn_wv', 'attn_wo', 'mlp_fc1', 'mlp_fc2']:

@@ -1352,3 +1352,124 @@ def detect_anomalies(probe):
 
     anomalies.sort(key=lambda a: a.get('step', 0))
     return anomalies
+
+
+# ============================================================================
+# Multi-phase experiment metrics (Experiments 7-12)
+# ============================================================================
+
+def recovery_overshoot(baseline_traj, recovery_traj, damage_end_step):
+    """
+    Measure whether a recovery trajectory overshoots baseline after damage removal.
+
+    Args:
+        baseline_traj: list of (step, loss) for undamaged baseline
+        recovery_traj: list of (step, loss) for the recovery condition
+        damage_end_step: step at which damage was removed
+
+    Returns:
+        dict with:
+            recovery_time: steps after damage_end until loss <= baseline loss (or None)
+            overshoot: mean(baseline_loss - recovery_loss) for steps after recovery (>0 = better)
+            max_overshoot: max improvement over baseline after recovery
+            final_ratio: recovery_final_loss / baseline_final_loss
+    """
+    bl_by_step = {s: l for s, l in baseline_traj}
+    rec_by_step = {s: l for s, l in recovery_traj}
+
+    # Find recovery point
+    recovery_time = None
+    post_damage_steps = sorted(s for s in rec_by_step if s >= damage_end_step)
+    for s in post_damage_steps:
+        if s in bl_by_step and rec_by_step[s] <= bl_by_step[s]:
+            recovery_time = s - damage_end_step
+            break
+
+    # Compute overshoot after recovery point
+    overshoot_vals = []
+    if recovery_time is not None:
+        recovery_step = damage_end_step + recovery_time
+        for s in post_damage_steps:
+            if s >= recovery_step and s in bl_by_step:
+                overshoot_vals.append(bl_by_step[s] - rec_by_step[s])
+
+    # Final ratio
+    bl_final = baseline_traj[-1][1] if baseline_traj else 1.0
+    rec_final = recovery_traj[-1][1] if recovery_traj else 1.0
+
+    return {
+        'recovery_time': recovery_time,
+        'overshoot': sum(overshoot_vals) / len(overshoot_vals) if overshoot_vals else 0.0,
+        'max_overshoot': max(overshoot_vals) if overshoot_vals else 0.0,
+        'final_ratio': rec_final / bl_final,
+    }
+
+
+def regeneration_completeness(pre_reset_loss, post_reset_traj, baseline_traj, reset_step):
+    """
+    Fraction of baseline performance recovered after layer reset.
+
+    Returns dict with:
+        completeness: 1.0 = full recovery, >1.0 = exceeded baseline
+        recovery_curve: list of (step, fraction_recovered)
+    """
+    bl_by_step = dict(baseline_traj)
+    bl_final = baseline_traj[-1][1] if baseline_traj else pre_reset_loss
+    gap = post_reset_traj[0][1] - bl_final if post_reset_traj else 0.0
+
+    recovery_curve = []
+    for s, l in post_reset_traj:
+        if s in bl_by_step and gap > 1e-10:
+            fraction = 1.0 - (l - bl_by_step[s]) / gap
+            recovery_curve.append((s, fraction))
+
+    final_loss = post_reset_traj[-1][1] if post_reset_traj else pre_reset_loss
+    completeness = 1.0 - (final_loss - bl_final) / max(gap, 1e-10) if gap > 1e-10 else 1.0
+
+    return {
+        'completeness': completeness,
+        'recovery_curve': recovery_curve,
+    }
+
+
+def transplant_advantage(transplant_final, random_reset_final, baseline_final):
+    """
+    How much better is transplant vs random reset, relative to baseline.
+    Positive = transplant helps vs random reset.
+    """
+    return {
+        'transplant_gap': random_reset_final - transplant_final,
+        'transplant_vs_baseline': (transplant_final - baseline_final) / baseline_final * 100,
+        'random_vs_baseline': (random_reset_final - baseline_final) / baseline_final * 100,
+    }
+
+
+def dual_objective_equilibrium(forward_losses, backward_losses, window=20):
+    """
+    Measure whether two competing objectives reach equilibrium.
+
+    Returns dict with:
+        forward_final: mean of last `window` forward losses
+        backward_final: mean of last `window` backward losses
+        converged: True if both loss variances in final window are < 5% of mean
+        ratio: forward_final / backward_final
+    """
+    fwd_tail = forward_losses[-window:] if len(forward_losses) >= window else forward_losses
+    bwd_tail = backward_losses[-window:] if len(backward_losses) >= window else backward_losses
+
+    fwd_mean = sum(fwd_tail) / len(fwd_tail)
+    bwd_mean = sum(bwd_tail) / len(bwd_tail)
+    fwd_var = sum((x - fwd_mean) ** 2 for x in fwd_tail) / len(fwd_tail)
+    bwd_var = sum((x - bwd_mean) ** 2 for x in bwd_tail) / len(bwd_tail)
+
+    fwd_cv = (fwd_var ** 0.5) / max(fwd_mean, 1e-10)
+    bwd_cv = (bwd_var ** 0.5) / max(bwd_mean, 1e-10)
+
+    return {
+        'forward_final': fwd_mean,
+        'backward_final': bwd_mean,
+        'converged': fwd_cv < 0.05 and bwd_cv < 0.05,
+        'ratio': fwd_mean / max(bwd_mean, 1e-10),
+        'forward_cv': fwd_cv,
+        'backward_cv': bwd_cv,
+    }
