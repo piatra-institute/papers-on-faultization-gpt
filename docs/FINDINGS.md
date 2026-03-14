@@ -1,8 +1,8 @@
 # MorphoGPT: Experimental Findings
 
-Morphogenetic perturbation analysis of a minimal GPT, asking: does the system exhibit behaviors that SGD didn't prescribe? We apply Levin's developmental biology methodology and Nancy's concept of désœuvrement (unworking) to reveal freedom from the training algorithm in transformer learning dynamics.
+Morphogenetic perturbation analysis of a minimal GPT, asking: does the system exhibit behaviors that Stochastic Gradient Descent (SGD) didn't prescribe? We apply Levin's developmental biology methodology to reveal emergent behaviors in transformer learning dynamics.
 
-**Central question:** SGD says "minimize loss." It does not say "build tolerance through gradual exposure," "recover completely from damage," or "regenerate a destroyed layer." When the system does these things anyway, that is freedom from the algorithm. The experiments below identify where such freedom appears, where wide basin geometry explains convergence without needing freedom, and where the system simply absorbs perturbation (tolerance).
+**Central question:** SGD says "minimize loss." It does not say "build tolerance through gradual exposure," "recover completely from damage," or "regenerate a destroyed layer." When the system does these things anyway, they are emergent — not directly prescribed by the optimization objective. The experiments below identify where such behaviors appear, where basin geometry explains convergence, and where the system simply absorbs perturbation (tolerance).
 
 
 ## 1. Setup
@@ -22,9 +22,9 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 ## 2. Experiment 1: Head Freezing
 
-**Analog:** Levin's frozen-cell perturbation. Randomly selected attention heads have their parameters frozen at initialization, forcing the remaining heads to compensate.
+**Motivation:** Levin's frozen-cell perturbation. Randomly selected attention heads have their parameters frozen at initialization, forcing the remaining heads to compensate.
 
-**Scaling note:** At $n = 3$, head freezing appeared to improve final loss — the coarse signal suggested damage helps. At $n = 30$, the final-loss improvement resolved to null, but a different, finer signal emerged: mean trajectory improvement for 4+ frozen heads. The picture sharpened; the original signal was in the wrong metric. At $n = 300$, the final-loss null holds firmly (all $p > 0.40$, Spearman $\rho = 0.0023$, $p = 0.92$), but the trajectory improvement strengthens to highly significant: freeze 8 ($\Delta = -0.12\%$, $p < 0.0001$), freeze 12 ($\Delta = -0.17\%$, $p < 0.0001$), freeze 16 ($\Delta = -0.19\%$, $p < 0.0001$). The trajectory freedom signal is robust at high power.
+**Scaling note:** At $n = 3$, head freezing appeared to improve final loss — the coarse signal suggested damage helps. At $n = 30$, the final-loss improvement resolved to null, but a different, finer signal emerged: mean trajectory improvement for 4+ frozen heads. The picture sharpened; the original signal was in the wrong metric. At $n = 300$, the final-loss null holds firmly (all $p > 0.40$, Spearman $\rho = 0.0023$, $p = 0.92$), but the trajectory improvement strengthens to highly significant: freeze 8 ($\Delta = -0.12\%$, $p < 0.0001$), freeze 12 ($\Delta = -0.17\%$, $p < 0.0001$), freeze 16 ($\Delta = -0.19\%$, $p < 0.0001$). The trajectory improvement signal is robust at high power.
 
 ### Results
 
@@ -44,7 +44,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Mean trajectory loss shows a genuine improvement.** Freezing 4+ heads produces a statistically significant reduction in mean loss: freeze 4 ($p = 0.012$, $d = -0.49$), freeze 8 ($p < 0.001$, $d = -1.03$), freeze 12 ($p < 0.001$, $d = -1.13$), freeze 16 ($p < 0.001$, $d = -0.96$). Effects are 0.1–0.2% of mean loss — small but statistically robust. Frozen heads at random initialization reduce gradient interference during training in a way SGD did not prescribe.
 
-**Freedom classification:** Trajectory improvement for 4+ frozen heads = *genuine freedom* (SGD did not specify this benefit from random-projection frozen heads). Final-loss indifference = *wide basin of attraction*.
+**Classification:** Trajectory improvement for 4+ frozen heads = *emergent behavior*. Final-loss indifference = *basin geometry*.
 
 **DG does not increase with freezing.** Freeze 12 actually decreases DG significantly ($p = 0.034$, $d = -0.41$). All other levels are non-significant.
 
@@ -53,7 +53,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 ## 3. Experiment 2: Cell-View GPT
 
-**Analog:** Nancy's being-singular-plural — each layer treated as an autonomous agent. Stop-gradient applied at all layer boundaries so each layer learns only from its own local loss signal, with no end-to-end backpropagation.
+**Motivation:** Each layer treated as an autonomous agent. Stop-gradient applied at all layer boundaries so each layer learns only from its own local loss signal, with no end-to-end backpropagation.
 
 **Scaling note:** At $n = 3$, the signal was ambiguous — cell-view appeared to elevate DG substantially (+25.5%), suggesting possible rerouting behavior. At $n = 30$, the DG signal resolved to null and the degradation signal became clear. At $n = 300$, cell-view degradation strengthens to $+2.9\%$ ($t = 8.307$, $p < 0.0001$, $d = 0.480$), confirming the degradation is a robust effect. No DG fine structure emerges.
 
@@ -68,7 +68,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Local-only learning degrades performance significantly.** Cell-view increases final loss by +4.9% ($p < 0.001$, $d = +1.16$) and mean loss by +1.8% ($p < 0.001$, $d = +3.31$). The degradation is significant and non-trivial, but the system still learns — eliminating all inter-layer gradient communication does not break the architecture.
 
-**Freedom classification:** *Tolerance* — the system absorbs the removal of inter-layer gradient flow at a bounded cost.
+**Classification:** *Tolerance* — the system absorbs the removal of inter-layer gradient flow at a bounded cost.
 
 **DG does not increase under cell-view.** At $n = 3$, a +25.5% DG elevation appeared. At $n = 30$, this signal resolved to null ($p = 0.34$). Cell-view DG (0.507) is not significantly different from baseline (0.571).
 
@@ -77,7 +77,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 ## 4. Experiment 3: Gradient Degradation
 
-**Analog:** Levin's noisy signaling channels. Gradients are corrupted during training through four methods: additive Gaussian noise (two scales), sign-only reduction (discarding magnitude), and 3-bit quantization.
+**Motivation:** Levin's noisy signaling channels. Gradients are corrupted during training through four methods: additive Gaussian noise (two scales), sign-only reduction (discarding magnitude), and 3-bit quantization.
 
 **Scaling note:** At $n = 3$, the signal was ambiguous — all four methods appeared neutral and small noise appeared to help. At $n = 30$, three of four resolved to significant degradation; one is genuinely tolerated. The null at $n = 3$ was insufficient resolution to see moderate effects. At $n = 300$, the pattern sharpens: noise $\sigma = 0.01$ remains non-significant ($-0.1\%$, $p = 0.52$), while noise $\sigma = 0.1$ ($+2.3\%$, $p < 0.0001$), sign-only ($+4.9\%$, $p < 0.0001$), and quantized 3-bit ($+3.4\%$, $p < 0.0001$) are all highly significant. The tolerance-to-degradation boundary is a sharp threshold between $\sigma = 0.01$ and $\sigma = 0.1$, not a graded curve.
 
@@ -97,14 +97,14 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Mean loss effects are highly significant.** Sign-only worsens mean loss by +3.9% ($p < 0.001$, $d = +6.13$), quantized by +2.4% ($p < 0.001$, $d = +4.54$), and noisy $\sigma = 0.1$ by +2.2% ($p < 0.001$, $d = +3.79$). The large Cohen's $d$ values (>3) indicate massive effects on the training trajectory.
 
-**Freedom classification:** *Tolerance* — the system absorbs gradient noise up to a threshold ($\sigma = 0.01$). Above that threshold, degradation follows.
+**Classification:** *Tolerance* — the system absorbs gradient noise up to a threshold ($\sigma = 0.01$). Above that threshold, degradation follows.
 
 **Architecture constrains the solution space.** Despite the degradation, the worst-performing method (sign-only) still achieves loss within 5% of baseline. The residual stream, attention patterns, and MLP structure define a narrow enough solution manifold that even crude gradient approximations navigate it, with measurable cost.
 
 
 ## 5. Experiment 4: Vision Radius Sweep
 
-**Analog:** Kofman, Campitelli & Levin's (2025) vision radius experiment in distributed chess, where each piece perceives only squares within radius R. We translate this by restricting each attention head's context window.
+**Motivation:** Kofman, Campitelli & Levin's (2025) vision radius experiment in distributed chess, where each piece perceives only squares within radius R. We translate this by restricting each attention head's context window.
 
 **Scaling note:** At $n = 3$, the signal was ambiguous — an information bottleneck effect appeared possible, with intermediate window sizes seeming to outperform full context. At $n = 30$, the ambiguous signal resolved to null for final loss across all window sizes. At $n = 300$, new fine structure emerges: window 1 significantly worsens loss ($+0.4\%$, $p = 0.0009$) and window 8 significantly improves it ($-0.1\%$, $p = 0.022$), while window 2, window 4, and window 16 remain non-significant. The null did not hold — higher power reveals a subtle gradient from harm at the smallest window to benefit at an intermediate window.
 
@@ -125,7 +125,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Tiny mean-loss effects exist for some windows.** Window=1 significantly worsens mean loss (+0.4%, $p < 0.001$, $d = +2.49$). Window=4 significantly improves mean loss (-0.1%, $p = 0.004$, $d = -0.57$) and window=8 improves it (-0.03%, $p < 0.001$, $d = -0.68$). These effects are too small (<0.5%) to be practically meaningful.
 
-**Freedom classification:** *Tolerance* — attention restriction at all tested scales is absorbed without meaningful final-loss change.
+**Classification:** *Tolerance* — attention restriction at all tested scales is absorbed without meaningful final-loss change.
 
 **Window=16 is identical to baseline.** Full-context window (16 = block size) reproduces baseline values exactly, confirming no implementation artifacts.
 
@@ -134,7 +134,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 ## 6. Experiment 5: Communication Topology
 
-**Analog:** The chess paper's relay chains, where pieces transmit threat information beyond their individual vision radius. We create a spectrum of gradient flow topologies between full backpropagation and complete isolation.
+**Motivation:** The chess paper's relay chains, where pieces transmit threat information beyond their individual vision radius. We create a spectrum of gradient flow topologies between full backpropagation and complete isolation.
 
 **Scaling note:** At $n = 3$, the signal was ambiguous — a U-shaped loss curve appeared possible, with partial communication seeming to outperform both extremes. At $n = 30$, the U-shaped curve resolved to flat (except at zero communication). At $n = 300$, the architecture's indifference holds: heavy ($p = 0.35$), half ($p = 0.87$), and light ($p = 0.41$) are all non-significant. Only cell-view (zero flow) hurts. The system is genuinely indifferent to gradient fraction above zero.
 
@@ -154,14 +154,14 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Only complete isolation degrades meaningfully.** Cell-view (0% gradient flow) degrades final loss by +4.9% ($p < 0.001$, $d = +1.16$) and mean loss by +1.8% ($p < 0.001$, $d = +3.31$).
 
-**Freedom classification:** *Tolerance* — the system absorbs substantial reductions in inter-layer gradient flow. Only total removal crosses the degradation threshold.
+**Classification:** *Tolerance* — the system absorbs substantial reductions in inter-layer gradient flow. Only total removal crosses the degradation threshold.
 
 **The U-shape claim was ambiguous at $n = 3$.** At $n = 30$, it resolved: no partial-flow condition outperforms full backpropagation. The pilot U-shape was sampling noise at low resolution.
 
 
 ## 7. Experiment 6: Courage vs. Caution
 
-**Analog:** Kofman et al.'s finding that "cautious position, courageous moves" is the optimal chess strategy. We translate this into a 2×2 matrix:
+**Motivation:** Kofman et al.'s finding that "cautious position, courageous moves" is the optimal chess strategy. We translate this into a 2×2 matrix:
 
 | | Cautious Gradients | Courageous Gradients |
 |:---:|:---:|:---:|
@@ -188,12 +188,12 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **The chess prediction is inverted.** Condition (c) courageous/cautious (dropout with stable gradients) significantly outperforms (b) cautious/courageous (sign-only with stable forward pass). The chess paper's predicted winner is the worst non-baseline condition for mean loss.
 
-**Substrate-dependent interpretation.** Chess pieces operate in a discrete, irreversible action space where stable perception is essential. Transformers operate in a continuous, differentiable landscape where forward noise acts as regularization and gradient precision is needed for fine-grained optimization. The inversion is substrate-dependent, not a freedom-from-the-algorithm finding.
+**Substrate-dependent interpretation.** Chess pieces operate in a discrete, irreversible action space where stable perception is essential. Transformers operate in a continuous, differentiable landscape where forward noise acts as regularization and gradient precision is needed for fine-grained optimization. The inversion is substrate-dependent.
 
 
 ## 8. Experiment 7: Recovery After Damage
 
-**Analog:** Levin's regeneration paradigm. Train normally, apply damage (freeze 8 heads), then remove damage and continue. Does the model recover? Does it overshoot?
+**Motivation:** Levin's regeneration paradigm. Train normally, apply damage (freeze 8 heads), then remove damage and continue. Does the model recover? Does it overshoot?
 
 **Scaling note:** At $n = 3$, recovery appeared complete but with too few observations to confirm. At $n = 30$, complete recovery is unambiguously confirmed across all 30 runs. At $n = 300$, recovery vs. control remains non-significant ($p = 0.64$), with ratio $0.9997 \pm 0.0086$ and all 300 runs recovered. The confidence interval shrinks 5x relative to $n = 30$. Mean overshoot is $-0.0007 \pm 0.0018$ and mean recovery time is $1.4 \pm 1.7$ steps. No run shows incomplete recovery.
 
@@ -209,16 +209,16 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Complete recovery, no lasting damage.** The damaged-then-recovered model reaches the same final loss as the undamaged control ($p = 0.905$). All 30 runs recovered within a mean of 2 steps after damage removal. 100 steps of training with 8 frozen heads left no trace.
 
-**This is genuine freedom from the algorithm.** SGD says "minimize loss." It does not say "recover completely from damage" or "return to the same basin after a detour." The completeness of recovery (ratio 0.9999, $p = 0.905$) is not prescribed by the loss minimization objective. A more brittle system could recover to a different basin. This one returns to the same endpoint with no path-dependence.
+The completeness of recovery (ratio 0.9999, $p = 0.905$) is notable: the optimizer prescribes convergence to *a* minimum, not necessarily to the *same* minimum after a detour through a constrained subspace. A more brittle system could recover to a different basin. This one returns to the same endpoint with no path-dependence.
 
-**Freedom classification:** *Genuine freedom* — path-independent recovery to identical final loss is not prescribed by the loss minimization objective.
+**Classification:** *Emergent behavior* — path-independent recovery to identical final loss is not directly prescribed by the loss minimization objective.
 
 **No overshoot.** Mean overshoot = -0.001. The Levin signature — damaged organisms exceeding baseline — is absent. The recovery is complete but not excessive.
 
 
 ## 9. Experiment 8: Chimera Assembly
 
-**Analog:** Chimeric organisms assembled from parts of different embryos. Two models trained independently; layers from each are combined into a Frankenstein model.
+**Motivation:** Chimeric organisms assembled from parts of different embryos. Two models trained independently; layers from each are combined into a Frankenstein model.
 
 **Scaling note:** At $n = 3$, chimeras appeared to converge but from too few observations. At $n = 30$, convergence is confirmed for all chimera types and the specific layer assignment is confirmed not to matter. At $n = 300$, all chimera types remain non-significant (AABB $p = 0.51$, ABAB $p = 0.83$, BBAA $p = 0.95$, ABBA $p = 0.63$). No systematic convergence speed differences emerge. The null holds at high power.
 
@@ -238,16 +238,16 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Layer assignment doesn't matter.** The spread across chimera types is only 0.014 in mean final loss. Whether layers alternate (ABAB) or cluster (AABB) makes no difference.
 
-**This reflects a wide basin of attraction, not freedom from the algorithm.** SGD prescribes convergence — that is literally what it does. The chimera result shows the basin of attraction is wide enough to absorb dramatically different starting conditions. The optimizer re-finds the same minimum from anywhere within the basin. This is what gradient descent does in smooth loss landscapes.
+The chimera result shows the basin of attraction is wide enough to absorb dramatically different starting conditions. SGD prescribes convergence; this is the expected behavior of the optimizer on a smooth loss landscape.
 
-**Freedom classification:** *Wide basin of attraction* — SGD re-finds the same minimum from any structurally valid starting point.
+**Classification:** *Basin geometry* — SGD re-finds the same minimum from any structurally valid starting point.
 
 
 ## 10. Experiment 9: Gradual vs. Sudden Damage
 
-**Analog:** Biological stress inoculation. Gradual exposure to a stressor builds tolerance that sudden exposure does not.
+**Motivation:** Biological stress inoculation. Gradual exposure to a stressor builds tolerance that sudden exposure does not.
 
-**Scaling note:** At $n = 3$, the gradual vs. sudden comparison appeared promising but underpowered. At $n = 30$, the key finding resolves clearly — this is the paper's strongest freedom-from-the-algorithm result. At $n = 300$, the stress inoculation effect strengthens dramatically: sudden full degrades by $+2.0\%$ ($p < 0.0001$), gradual shows only mild degradation ($+0.4\%$, $p = 0.024$), sudden half is marginal ($+0.4\%$, $p = 0.051$), and the direct gradual-vs-sudden comparison strengthens from $p = 0.011$ at $n = 30$ to $p < 0.0001$ at $n = 300$ ($\Delta = -1.5\%$, $d = -0.278$). This is the paper's most robust cross-scale confirmation.
+**Scaling note:** At $n = 3$, the gradual vs. sudden comparison appeared promising but underpowered. At $n = 30$, the key finding resolves clearly — this is the paper's strongest emergent-behavior result. At $n = 300$, the stress inoculation effect strengthens dramatically: sudden full degrades by $+2.0\%$ ($p < 0.0001$), gradual shows only mild degradation ($+0.4\%$, $p = 0.024$), sudden half is marginal ($+0.4\%$, $p = 0.051$), and the direct gradual-vs-sudden comparison strengthens from $p = 0.011$ at $n = 30$ to $p < 0.0001$ at $n = 300$ ($\Delta = -1.5\%$, $d = -0.278$). This is the paper's most robust cross-scale confirmation.
 
 ### Results
 
@@ -262,16 +262,16 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Gradual exposure builds tolerance.** The gradually-ramped condition is statistically indistinguishable from control ($p = 0.43$), while sudden exposure to the same peak noise level significantly degrades final loss ($p = 0.004$, +3.3%). Direct comparison: gradual is significantly better than sudden ($p = 0.011$, $d = -0.50$).
 
-**This is the paper's clearest instance of freedom from the algorithm.** SGD says "minimize loss given the current gradient." It does not say "develop tolerance to noise schedules" or "adapt to stressors that arrive gradually." The gradient update rule is identical in the sudden and gradual conditions at every step — the only difference is the *history* of noise levels. That history matters, and the system develops different properties depending on it. This is not what the loss minimization objective specifies.
+**This is the paper's clearest emergent behavior.** The gradient update rule is identical in the sudden and gradual conditions at every step — the only difference is the *history* of noise levels. That history matters, and the system develops different properties depending on it. The optimization objective does not specify how noise history should change the system's final state, but it does.
 
-**Freedom classification:** *Genuine freedom* — stress inoculation is not prescribed by SGD. The system develops differential tolerance based on perturbation history in a way the optimizer did not request.
+**Classification:** *Emergent behavior* — the system develops differential tolerance based on perturbation history despite identical gradient update rules at every step.
 
 **Gradual noise acts as regularization.** The gradual condition's mean loss is *below* control ($-0.1\%$, $p = 0.006$), suggesting the slowly-introduced noise serves as a regularizer.
 
 
 ## 11. Experiment 10: Regeneration (Layer Reset)
 
-**Analog:** Tissue regeneration. Destroy a layer entirely (reset to random), continue training.
+**Motivation:** Tissue regeneration. Destroy a layer entirely (reset to random), continue training.
 
 **Scaling note:** At $n = 3$, regeneration appeared possible but with too few observations to confirm completeness. At $n = 30$, complete regeneration is confirmed for all four layers. At $n = 300$, fine structure emerges in regeneration completeness: L0 reaches $94.3\%$ ($p = 0.016$, significantly below full), L1 reaches $99.4\%$ ($p = 0.18$, non-significant), L2 reaches $101.1\%$ ($p = 0.040$, significantly above baseline), and L3 reaches $97.6\%$ ($p = 0.091$, marginal). Early layers show slight but significant regeneration incompleteness that was invisible at $n = 30$.
 
@@ -289,16 +289,16 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Complete regeneration.** All four layers recover to control-equivalent loss after being destroyed ($p > 0.17$ for all). Layers 2-3 achieve completeness significantly above 0.9 ($p < 0.001$), with L2 at 1.003 (marginally exceeding baseline).
 
-**This is genuine freedom from the algorithm.** SGD says "minimize loss." It does not say "rebuild a destroyed layer to the same performance as if it had never been destroyed." The completeness of regeneration — particularly L2 at 1.003 and L3 at 0.998 — demonstrates that the network re-finds the same functional role regardless of what was there before. This is not prescribed by the optimizer.
+The completeness of regeneration — particularly L2 at 1.003 and L3 at 0.998 — demonstrates that the network re-finds the same functional role regardless of what was there before. The optimizer prescribes convergence to a minimum; it does not prescribe that a rebuilt layer should reach the same functional role as if it had never been destroyed.
 
-**Freedom classification:** *Genuine freedom* — complete layer regeneration to control-equivalent performance is not prescribed by the loss minimization objective.
+**Classification:** *Emergent behavior* — complete layer regeneration to control-equivalent performance is not directly prescribed by the loss minimization objective.
 
 **No layer is indispensable.** Despite later layers suffering more immediate damage (+0.26 for L0 vs. +0.34 for L3), all regenerate equally. Layer position does not predict damage (Spearman $\rho = 0.078$, $p = 0.395$).
 
 
 ## 12. Experiment 11: Transplantation
 
-**Analog:** Organ transplantation. Replace a layer with one from a separately-trained donor model.
+**Motivation:** Organ transplantation. Replace a layer with one from a separately-trained donor model.
 
 **Scaling note:** At $n = 3$, a transplant advantage appeared possible. At $n = 30$, the null result resolves clearly — there is no advantage to a structured donor layer over a random replacement. At $n = 300$, the null holds across all layers ($p = 0.45$–$0.54$). No layer-specific transplant advantage or disadvantage emerges even at 10x power.
 
@@ -318,14 +318,14 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **The network doesn't recognize donor structure.** Unlike biological transplantation where tissue compatibility matters, the network rebuilds whatever is placed at each layer position from scratch. The donor layer's learned structure provides no advantage.
 
-**This reflects the wide basin of attraction, not freedom from the algorithm.** The loss landscape is smooth enough that any reasonable starting point finds the minimum. SGD was always going to do this.
+The loss landscape is smooth enough that any reasonable starting point finds the minimum.
 
-**Freedom classification:** *Wide basin of attraction* — the basin is equally accessible from pre-trained and random initializations.
+**Classification:** *Basin geometry* — the basin is equally accessible from pre-trained and random initializations.
 
 
 ## 13. Experiment 12: Competing Objectives
 
-**Analog:** Inter-organ conflict. Negate gradients for layers 2-3 while layers 0-1 train normally.
+**Motivation:** Inter-organ conflict. Negate gradients for layers 2-3 while layers 0-1 train normally.
 
 **Scaling note:** At $n = 3$, the distinction between adversarial and inactive layers appeared but was underpowered. At $n = 30$, the distinction resolves sharply. At $n = 300$, competing objectives degrade by $+23.3\%$ ($p < 0.0001$, $d = 0.602$) while freeze remains non-significant ($p = 0.74$). High variance persists (std = 1.12), and the adversarial-vs-freeze distinction sharpens to highly significant at $n = 300$.
 
@@ -343,7 +343,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Frozen components are tolerated.** Merely freezing those same layers causes negligible degradation (+0.2%, $p = 0.303$). Competing vs. freeze: $p = 0.011$.
 
-**Freedom classification:** *Tolerance* for the freeze condition (absence is absorbed without prescription from SGD); the adversarial result is a boundary condition revealing the limits of tolerance.
+**Classification:** *Tolerance* for the freeze condition (absence is absorbed without prescription from SGD); the adversarial result is a boundary condition revealing the limits of tolerance.
 
 **Sharp line between absence and opposition.** The architecture can handle absent layers (residual stream routes around them) but cannot compensate for layers actively working against the objective. This defines the architecture's tolerance limit.
 
@@ -352,26 +352,26 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 Six findings emerge from the combined evidence across twelve experiments at $n = 30$.
 
-### Finding 1: Genuine freedom — gradual exposure builds tolerance (Exp 9)
+### Finding 1: Emergent — gradual exposure builds tolerance (Exp 9)
 
-The paper's strongest freedom-from-the-algorithm result. Gradual noise ramp (0→0.1) produces no final-loss degradation ($p = 0.43$), while sudden exposure to the same peak noise level degrades by +3.3% ($p = 0.004$). Direct comparison: $p = 0.011$, $d = -0.50$. The gradient update rule is identical at every step; only the history differs. That history changes the system's final state. SGD did not prescribe this.
+The paper's strongest emergent-behavior result. Gradual noise ramp (0→0.1) produces no final-loss degradation ($p = 0.43$), while sudden exposure to the same peak noise level degrades by +3.3% ($p = 0.004$). Direct comparison: $p = 0.011$, $d = -0.50$. The gradient update rule is identical at every step; only the history differs. That history changes the system's final state.
 
-### Finding 2: Genuine freedom — complete recovery, regeneration, and trajectory improvement (Exp 1, 7, 10)
+### Finding 2: Emergent — complete recovery, regeneration, and trajectory improvement (Exp 1, 7, 10)
 
-The architecture recovers and rebuilds without explicit specification from the optimizer:
+The architecture recovers and rebuilds:
 - Damaged and recovered: final ratio 0.9999 ($p = 0.905$ vs control)
 - Layer reset to random: $p > 0.17$ for all layers (complete regeneration)
 - Head-freezing trajectory improvement: freeze 8 ($p < 0.001$, $d = -1.03$)
 
-SGD says "minimize loss." It does not say "return to the same basin after damage" or "rebuild a destroyed layer to equivalent performance." These behaviors exceed what the objective specifies.
+The optimizer prescribes convergence to a minimum; it does not prescribe returning to the same basin after damage or rebuilding a destroyed layer to equivalent performance.
 
-### Finding 3: Wide basin — chimeras and transplants converge regardless (Exp 8, 11)
+### Finding 3: Basin geometry — chimeras and transplants converge regardless (Exp 8, 11)
 
 The architecture converges to the same loss regardless of assembly history:
 - Chimeras from two models: $p > 0.26$ for all assemblies
 - Transplant vs random reset: $p = 0.86$ (no difference)
 
-This is SGD doing its job in a smooth loss landscape, not the system exhibiting freedom. The basin is wide enough to reach from dramatically different starting points.
+The basin of attraction is wide enough to reach from dramatically different starting points.
 
 ### Finding 4: The absence vs. adversity distinction (Exp 12)
 
@@ -385,10 +385,10 @@ Sign-only gradients degrade more than dropout ($p < 0.001$, $d = +6.00$ for mean
 
 | Perturbation | Final Loss Δ% | $p$-value | Classification |
 |---|---|---|---|
-| Freeze 1-4 heads | +0.1-0.2% | >0.37 | Wide basin / trajectory freedom |
+| Freeze 1-4 heads | +0.1-0.2% | >0.37 | Basin geometry / emergent |
 | Partial gradient flow (25-75%) | +0.0-0.1% | >0.02 | Tolerance |
 | Noisy gradients (σ=0.01) | +0.3% | 0.53 | Tolerance |
-| Gradual noise ramp (0→0.1) | +0.5% | 0.43 | Genuine freedom |
+| Gradual noise ramp (0→0.1) | +0.5% | 0.43 | Emergent |
 | Frozen layers (L2-3) | +0.2% | 0.30 | Tolerance |
 | Dropout (p=0.1) | +0.5% | 0.029 | Mild degradation |
 | Sudden noise (σ=0.1) | +3.3% | 0.004 | Degradation |
@@ -402,7 +402,7 @@ Sign-only gradients degrade more than dropout ($p < 0.001$, $d = +6.00$ for mean
 
 How signals changed as the resolution dial turned from $n = 3$ to $n = 30$, with markers for what $n = 300$ may reveal.
 
-**Head freezing improves final loss (Exp 1):** At $n = 3$, the coarse signal showed a possible improvement. At $n = 30$, the final-loss effect resolved to null ($p > 0.06$), but a different, finer signal emerged in the mean trajectory. The picture sharpened and moved to a different metric — not a retraction, but a resolution change. At $n = 300$, the trajectory improvement strengthens to highly significant ($p < 0.0001$ for freeze 8, 12, and 16), confirming this as a robust freedom signal. Final-loss null also holds firmly (all $p > 0.40$).
+**Head freezing improves final loss (Exp 1):** At $n = 3$, the coarse signal showed a possible improvement. At $n = 30$, the final-loss effect resolved to null ($p > 0.06$), but a different, finer signal emerged in the mean trajectory. The picture sharpened and moved to a different metric — not a retraction, but a resolution change. At $n = 300$, the trajectory improvement strengthens to highly significant ($p < 0.0001$ for freeze 8, 12, and 16), confirming this as a robust emergent-behavior signal. Final-loss null also holds firmly (all $p > 0.40$).
 
 **DG scales with perturbation:** At $n = 3$, DG appeared to scale with perturbation severity. At $n = 30$, this resolved to null across all conditions ($p > 0.16$). The DG metric captures stochastic SGD dynamics but not perturbation response. At $n = 300$, the DG null holds. No fine structure emerges even at 10x power. DG does not track perturbation.
 
@@ -416,24 +416,24 @@ How signals changed as the resolution dial turned from $n = 3$ to $n = 30$, with
 
 **Chimera convergence (Exp 8):** At $n = 3$, convergence appeared probable. At $n = 30$, confirmed for all chimera types. At $n = 300$, all chimera types remain non-significant (AABB $p = 0.51$, ABAB $p = 0.83$, BBAA $p = 0.95$, ABBA $p = 0.63$). No convergence speed differences emerge.
 
-**Gradual vs. sudden damage (Exp 9):** At $n = 3$, the signal was ambiguous. At $n = 30$, stress inoculation resolves as the paper's clearest freedom finding ($p = 0.011$). At $n = 300$, the effect strengthens dramatically: the gradual-vs-sudden gap goes from $p = 0.011$ at $n = 30$ to $p < 0.0001$ at $n = 300$ ($\Delta = -1.5\%$, $d = -0.278$). This is the paper's most robust cross-scale confirmation of a freedom finding.
+**Gradual vs. sudden damage (Exp 9):** At $n = 3$, the signal was ambiguous. At $n = 30$, stress inoculation resolves as the paper's clearest emergent-behavior finding ($p = 0.011$). At $n = 300$, the effect strengthens dramatically: the gradual-vs-sudden gap goes from $p = 0.011$ at $n = 30$ to $p < 0.0001$ at $n = 300$ ($\Delta = -1.5\%$, $d = -0.278$). This is the paper's most robust cross-scale confirmation.
 
 
 ## 16. Findings — What Perturbation Revealed
 
-### Genuine Freedom from the Algorithm
+### Emergent Behaviors
 
-**1. Gradual stress builds tolerance (Exp 9).** The only experiment where the *manner* of perturbation application matters. Gradual noise ramp: $p = 0.43$ vs control. Sudden noise: $p = 0.004$. Direct: $p = 0.011$. SGD doesn't specify how the history of noise levels should change the system's final state — but it does.
+**1. Gradual stress builds tolerance (Exp 9).** The only experiment where the *manner* of perturbation application matters. Gradual noise ramp: $p = 0.43$ vs control. Sudden noise: $p = 0.004$. Direct: $p = 0.011$. The gradient update rule is identical at every step; only the history differs. That history changes the system's final state.
 
-**2. Complete recovery (Exp 7).** A model damaged during training recovers to identical final loss ($p = 0.905$, ratio 0.9999). All 30 runs recovered within a mean of 2 steps. The path through damage leaves no trace. SGD prescribes finding a minimum; it doesn't prescribe returning to the *same* minimum after a detour.
+**2. Complete recovery (Exp 7).** A model damaged during training recovers to identical final loss ($p = 0.905$, ratio 0.9999). All 30 runs recovered within a mean of 2 steps. The path through damage leaves no trace.
 
-**3. Complete regeneration (Exp 10).** Any layer can be destroyed and rebuilt to control-equivalent performance ($p > 0.17$ for all layers). The network re-finds the same functional role regardless of what was there before. SGD didn't prescribe this completeness.
+**3. Complete regeneration (Exp 10).** Any layer can be destroyed and rebuilt to control-equivalent performance ($p > 0.17$ for all layers). The network re-finds the same functional role regardless of what was there before.
 
-**4. Head-freezing trajectory improvement (Exp 1).** Freezing 4+ randomly-initialized heads produces small but statistically robust mean-trajectory improvements (freeze 8: $p < 0.001$, $d = -1.03$). Frozen random-projection heads reduce gradient interference in a way the optimizer did not request.
+**4. Head-freezing trajectory improvement (Exp 1).** Freezing 4+ randomly-initialized heads produces small but statistically robust mean-trajectory improvements (freeze 8: $p < 0.001$, $d = -1.03$). Frozen random-projection heads reduce gradient interference.
 
-### Wide Basin of Attraction
+### Basin Geometry
 
-**5. Chimera convergence (Exp 8).** Models assembled from parts of two independently-trained networks converge to the same final loss as undamaged continuation ($p > 0.26$ for all chimera types). This is SGD doing its job in a smooth loss landscape, not freedom.
+**5. Chimera convergence (Exp 8).** Models assembled from parts of two independently-trained networks converge to the same final loss as undamaged continuation ($p > 0.26$ for all chimera types). The basin of attraction is wide enough to reach from dramatically different starting points.
 
 **6. Transplant indifference (Exp 11).** Transplanted layers and randomly-reset layers converge to the same final loss ($p = 0.86$ overall). The basin is equally accessible from pre-trained and random initializations.
 
@@ -446,28 +446,20 @@ How signals changed as the resolution dial turned from $n = 3$ to $n = 30$, with
 **9. Adversarial vs. inactive tolerance (Exp 12).** Frozen layers cost nothing ($p = 0.30$); adversarial layers cost +18% ($p = 0.01$). The architecture tolerates absence but not opposition.
 
 
-## 17. The Nancy Reading
+## 17. Interpretive Lenses
 
-Nancy's concept of désœuvrement — the interruption of work that reveals the community constituted by work — provides the interpretive frame for this methodology and its findings. The relevant question is not just what structure the interruption reveals, but what *freedom* it exposes: behaviors the algorithm did not request.
+The empirical findings admit several interpretive framings beyond the neutral classification used above. These are not claims; they are ways of reading the results.
 
-**Normal training is opaque.** During standard backpropagation, the transformer's components cooperate invisibly. The system works, and its working conceals its structure and its freedom.
+**Lens 1: Freedom from the algorithm.** One can frame the emergent behaviors as "freedom" — behaviors the optimizer didn't prescribe but the system exhibits anyway. Under this reading, SGD says "minimize loss"; it does not say "build tolerance through gradual exposure," "recover completely from damage," or "rebuild a destroyed layer to the same functional role." Stress inoculation is the strongest case: the gradient update rule is identical at every step, yet the system's final state depends on perturbation history. Recovery and regeneration are weaker cases — one could argue they are also basin geometry effects. The classification boundary between "emergent" and "basin geometry" is itself a question, not a settled fact.
 
-**Perturbation as unworking.** Twelve experiments interrupt the system's work — freezing, severing, corrupting, restricting, assembling, destroying, transplanting, conflicting. The interruptions reveal structure. But some of what they reveal is more than structure — it is freedom.
+**Lens 2: Désœuvrement (Nancy).** Jean-Luc Nancy's concept of *désœuvrement* (unworking) argues that the structure of a collective system becomes visible only when its coordinated work is interrupted (Nancy, 1991). Each experiment interrupts the transformer's work. The interruptions make legible the relational structure that normal operation conceals: redundancy (head freezing), dependency (cell-view degradation), compensatory capacity (recovery, regeneration), and tolerance boundaries (adversarial vs. absent layers). The absence-vs-adversity distinction (Exp 12) maps onto Nancy's distinction between the *withdrawn* member of a community and the *hostile* member.
 
-**Freedom revealed: stress inoculation.** The system develops tolerance to noise that arrives gradually. At every training step, the update rule is the same: compute gradient, apply update. The optimizer does not remember previous noise levels when computing the current update. Yet the system's final state depends on that history. This is not prescribed by the loss minimization objective. The gradually-trained model reaches a better minimum than the suddenly-trained model, using the same number of gradient steps with the same peak noise level.
-
-**Freedom revealed: complete recovery and regeneration.** The system recovers completely from transient damage and rebuilds destroyed layers to control-equivalent performance. SGD prescribes finding a minimum — it does not prescribe *which* minimum or how completely to return to it after perturbation. The completeness of recovery (ratio 0.9999) and the universality of regeneration (all four layers, $p > 0.17$) exceed what the optimizer specifies.
-
-**Wide basin clarified, not freedom.** Chimera convergence and transplant indifference reflect the geometry of the loss landscape — a wide basin with a single dominant attractor. SGD always converges to this; the finding is that the basin is wide enough to reach from dramatically different starting points. This is what gradient descent does in smooth loss landscapes. It is not freedom; it is the expected behavior of the optimizer on a particular landscape.
-
-**A sharp line between absence and opposition.** The architecture tolerates frozen (absent) components but cannot compensate for adversarial ones. This maps onto Nancy's distinction between the *withdrawn* member of the community (whose absence is absorbed) and the *hostile* member (whose opposition destroys the work). The tolerance of absence is itself a kind of structural freedom — the residual stream routes around silence in a way the optimizer did not explicitly prescribe.
-
-**Désœuvrement reveals freedom.** Nancy's unworking makes the community legible by interrupting its work. Here, the interruptions make legible not just the redundancy and dependency structure of the transformer, but its freedom: the behaviors it exhibits that gradient descent did not ask for. The work conceals the community; the unworking shows not only its basin but its capacity for adaptation that the algorithm left unspecified.
+**Lens 3: Morphogenetic competency (Levin).** Levin et al. (2024) proposed that computational systems can exhibit morphogenetic competencies analogous to biological development. Under this reading, stress inoculation is analogous to biological stress hardening, regeneration to tissue regeneration, chimera convergence to chimeric organism development. The DG null (no perturbation response at any scale) is a point of divergence: biological systems show richer compensatory rerouting than this minimal transformer.
 
 
 ## 18. Limitations
 
-- **Scale:** 4 layers, 16 dimensions, 16 heads, ~11K params. The freedom findings (stress inoculation, recovery, regeneration) may be specific to small models, or they may be architectural universals.
+- **Scale:** 4 layers, 16 dimensions, 16 heads, ~11K params. The emergent behaviors (stress inoculation, recovery, regeneration) may be specific to small models, or they may be architectural universals.
 - **Task complexity:** Character-level name generation is a toy task. Whether stress inoculation appears in language modeling or other complex tasks is not established.
 - **Training duration:** 200 steps per phase. Gradual-exposure tolerance may not persist at longer horizons.
 - **Transplant design:** Both models trained on same task/data. Cross-task transplantation might show different results.

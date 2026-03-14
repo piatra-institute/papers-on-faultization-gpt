@@ -1,11 +1,11 @@
 """
-MorphoGPT — Désœuvrement of the GPT Loop
+MorphoGPT — Morphogenetic Perturbation of a Minimal GPT
 
 microgpt + hook system + probe instrumentation.
 When no hooks are active, reproduces microgpt behavior exactly.
 
 Applies Michael Levin's morphogenetic perturbation methodology
-to Karpathy's microgpt, guided by Jean-Luc Nancy's désœuvrement.
+to Karpathy's microgpt.
 """
 
 import os

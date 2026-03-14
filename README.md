@@ -119,5 +119,5 @@ morphogpt/
 
 - **`docs/PAPER.md`** — Full paper with statistical analysis, two-tier anomaly structure, and chess-paper bridge
 - **`docs/FINDINGS.md`** — Experiment-by-experiment results with paired t-test p-values
-- **`docs/ARCHITECTURE.md`** — Original design document (Levin-Nancy philosophical framework)
+- **`docs/ARCHITECTURE.md`** — Original design document (Levin-inspired perturbation methodology)
 - **`docs/MODIFICATIONS.md`** — Systematic inventory of 12 assumptions and their violations

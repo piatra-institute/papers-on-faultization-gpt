@@ -1,5 +1,9 @@
 # MorphoGPT — Implementation Analysis & Critical Notes
 
+> **Note:** This is an early design document written before experiments were run.
+> It uses philosophical framing (Nancy, Levin) that motivated the methodology.
+> For scientific results with neutral terminology, see `PAPER.md` and `FINDINGS.md`.
+
 
 ---
 
@@ -100,24 +104,24 @@ This is weaker than Levin's spatial aggregation (his cells literally move to be 
 **Best approach**: Start with representational and gradient aggregation. These are well-defined and measurable.
 
 
-### Problem 5: The Nancy Distinction — Désœuvrement vs. Standard Ablation
+### Problem 5: Process-Focused vs. Endpoint-Focused Methodology
 
-This is the most important conceptual issue: **does the Nancy framing actually change what we do, or is it decorative?**
+This is the most important conceptual issue: **does the morphogenetic framing actually change what we do, or is it decorative?**
 
 The answer: it changes what we **measure** and how we **interpret**, even when the interventions look similar to standard ablation.
 
-| Standard Ablation | MorphoGPT (Levin/Nancy) |
+| Standard Ablation | MorphoGPT (process-focused) |
 |---|---|
 | Remove head, measure accuracy drop | Remove head, measure full **trajectory** of loss over training |
-| Ask: "how important is this head?" | Ask: "what does the collective do when this component is interrupted?" |
+| Ask: "how important is this head?" | Ask: "what does the system do when this component is interrupted?" |
 | Endpoint-focused | Process-focused |
 | One-time measurement | Dynamic observation of rerouting, delayed gratification, recovery |
 | Component importance ranking | Competence characterization of the whole system |
-| The system is a machine with parts | The system is a community of singularities |
+| The system is a machine with parts | The system is a collection of interacting components |
 
 Concrete difference: A standard ablation study would report "removing head 2 increases loss by 0.3." MorphoGPT reports "removing head 2 during training causes loss to increase by 0.5 for 50 steps, then the system reroutes through heads 0 and 3 (evidenced by increased gradient flow to those heads), recovering to within 0.1 of baseline by step 200, with a delayed gratification index of 1.4 — significantly higher than the 0.8 DG index observed with no damage (p < 0.01)."
 
-The second is a characterization of *system behavior*, not *component importance*. This is the Levin/Nancy contribution.
+The second is a characterization of *system behavior*, not *component importance*. This is the morphogenetic perturbation contribution.
 
 
 ### Problem 6: Delayed Gratification — Separating Signal from Noise

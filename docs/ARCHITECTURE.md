@@ -1,8 +1,12 @@
 # MorphoGPT
 
-## Désœuvrement of the GPT Loop: Emergent Competencies in a Minimal Transformer Under Perturbation
+## Emergent Competencies in a Minimal Transformer Under Perturbation
 
-### A Levin-Nancy Framework for Understanding What the GPT Algorithm Really Is
+### A Levin-Inspired Framework for Understanding What the GPT Algorithm Really Is
+
+> **Note:** This is the original design document written before experiments were run.
+> It uses philosophical framing (Nancy, Levin) that motivated the methodology.
+> For scientific results with neutral terminology, see `PAPER.md` and `FINDINGS.md`.
 
 
 ---

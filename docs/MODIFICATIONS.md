@@ -263,7 +263,7 @@ Each token's key and value vectors are cached and accessible to all future token
 
 ## Summary: The Assumption Inventory
 
-| # | Assumption | Category | Levin Analog |
+| # | Assumption | Category | Levin Parallel |
 |---|---|---|---|
 | A1 | Sequential L→R processing | Execution order | Top-down control |
 | A2 | Causal (past-only) attention | Information flow | Cell visibility range |
@@ -348,4 +348,4 @@ Each of these is a distinct "assumption violation" experiment in the Levin style
 
 The full MorphoGPT experimental program is not "freeze some heads and measure loss." It is: **systematically question every assumption of the GPT algorithm and characterize the system's competence when each assumption is violated.**
 
-This is désœuvrement in the fullest sense: not breaking one thing, but methodically unworking the entire structure to reveal what holds it together.
+This is the perturbation methodology taken to its fullest extent: not breaking one thing, but methodically interrupting the entire structure to reveal what holds it together.

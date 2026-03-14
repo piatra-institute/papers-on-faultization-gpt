@@ -1175,15 +1175,15 @@ def cross_scale_summary():
     print(f"\nSignificance: *** p<0.001, ** p<0.01, * p<0.05, † p<0.10, ns p≥0.10")
 
 
-def freedom_classification():
-    """Classify findings by 'freedom from the algorithm'."""
+def behavioral_classification():
+    """Classify findings by behavioral category (emergent / basin geometry / tolerance)."""
     print("\n" + "=" * 70)
-    print("FREEDOM FROM THE ALGORITHM: Classification at n=300")
+    print("BEHAVIORAL CLASSIFICATION at n=300")
     print("=" * 70)
 
     suffix = '_n300'
 
-    print("\n=== GENUINE FREEDOM (behaviors SGD doesn't prescribe) ===\n")
+    print("\n=== EMERGENT BEHAVIORS (not directly prescribed by the optimizer) ===\n")
 
     # Exp 9: Stress inoculation
     try:
@@ -1196,7 +1196,7 @@ def freedom_classification():
         print(f"    Gradual vs control: p={paired_ttest(ctrl, gradual)[1]:.4f}")
         print(f"    Sudden vs control:  p={paired_ttest(ctrl, sudden)[1]:.4f}")
         print(f"    Gradual vs sudden:  p={p:.4f} d={d:+.3f} {sig_marker(p)}")
-        print(f"    SGD says 'minimize loss' — not 'build tolerance through gradual exposure'")
+        print(f"    The optimizer prescribes loss minimization — not tolerance to noise schedules")
     except FileNotFoundError:
         print(f"  Exp 9 — no n=300 data")
 
@@ -1211,7 +1211,7 @@ def freedom_classification():
         print(f"    Recovery vs control: p={p:.4f} {sig_marker(p)}")
         if rec_times:
             print(f"    Recovery time: {np.mean(rec_times):.1f}±{np.std(rec_times, ddof=1):.1f} steps ({len(rec_times)}/{len(data)} recovered)")
-        print(f"    SGD has no 'healing' instruction — yet the system recovers fully")
+        print(f"    Complete recovery: the optimizer finds the same minimum after transient damage")
     except FileNotFoundError:
         print(f"  Exp 7 — no n=300 data")
 
@@ -1225,7 +1225,7 @@ def freedom_classification():
             comps = [r['layers'][str(li)]['completeness'] for r in data]
             t, p, md, se, d = paired_ttest(ctrl, finals)
             print(f"    L{li}: completeness={np.mean(comps):.3f} p={p:.4f} {sig_marker(p)}")
-        print(f"    SGD doesn't optimize for recoverability — yet destroyed layers regrow")
+        print(f"    Destroyed layers rebuild to control-equivalent performance")
     except FileNotFoundError:
         print(f"  Exp 10 — no n=300 data")
 
@@ -1244,11 +1244,11 @@ def freedom_classification():
             t, p, md, se, d = paired_ttest(bl_mean, vals)
             pct = md / np.mean(bl_mean) * 100
             print(f"    {name}: mean_loss Δ={pct:+.2f}% p={p:.4f} {sig_marker(p)}")
-        print(f"    SGD doesn't optimize for robustness to ablation")
+        print(f"    Frozen random-projection heads reduce gradient interference")
     except FileNotFoundError:
         print(f"  Exp 1 — no n=300 data")
 
-    print("\n=== WIDE BASIN OF ATTRACTION (SGD re-finding the same minimum) ===\n")
+    print("\n=== BASIN GEOMETRY (expected optimizer behavior on this landscape) ===\n")
 
     # Exp 8: Chimera
     try:
@@ -1278,7 +1278,7 @@ def freedom_classification():
     except FileNotFoundError:
         print(f"  Exp 11 — no n=300 data")
 
-    print("\n=== TOLERANCE (system works despite corruption, but doesn't exceed SGD) ===\n")
+    print("\n=== TOLERANCE (system absorbs perturbation without meaningful degradation) ===\n")
 
     # Exp 3: Gradient degradation
     try:
@@ -1372,10 +1372,10 @@ if __name__ == '__main__':
         analyze_exp12_n300()
     elif cmd == 'cross':
         cross_scale_summary()
-    elif cmd == 'freedom':
-        freedom_classification()
+    elif cmd in ('classify', 'freedom'):
+        behavioral_classification()
     elif cmd == 'full':
-        # All scales + cross-scale + freedom classification
+        # All scales + cross-scale + behavioral classification
         print("=" * 70)
         print("N=30 ANALYSIS")
         print("=" * 70)
@@ -1409,7 +1409,7 @@ if __name__ == '__main__':
         analyze_exp11_n300()
         analyze_exp12_n300()
         cross_scale_summary()
-        freedom_classification()
+        behavioral_classification()
     else:
         analyze_exp1()
         analyze_exp2()
