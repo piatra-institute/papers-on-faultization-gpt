@@ -1,6 +1,6 @@
 # MorphoGPT: Experiment Summary
 
-Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim, 4-head, ~11K params). All results at n=300 (300 independent runs per condition, paired by seed).
+Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim, 4-head, ~13,400 params). All results at n=300 (300 independent runs per condition, paired by seed).
 
 
 ## Experiment 1: Head Freezing

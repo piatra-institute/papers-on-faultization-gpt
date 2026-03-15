@@ -265,9 +265,10 @@ def make_delayed_gradients(delay_steps=5):
 
 def make_noisy_gradients(noise_std=0.01, rng=None):
     """Add Gaussian noise to every gradient. Returns a grad_hook."""
+    _rng = rng if rng is not None else np.random.RandomState()
     def grad_hook(grads, state_dict, step):
         for k in grads:
-            grads[k] = grads[k] + np.random.randn(*grads[k].shape) * noise_std
+            grads[k] = grads[k] + _rng.randn(*grads[k].shape) * noise_std
     return grad_hook
 
 
@@ -385,18 +386,20 @@ def make_partial_stop_gradient(layer, pass_fraction):
 
 def make_partial_stop_gradient_grad_hook(layer, pass_fraction, config):
     """
-    Scale gradients for layers 0..layer by pass_fraction.
-    At pass_fraction=0.0: full stop-gradient (same as make_stop_gradient).
+    Scale gradients for the boundary layer only by pass_fraction.
+    At pass_fraction=0.0: full stop-gradient for this layer.
     At pass_fraction=1.0: no effect.
+
+    With multiple hooks registered (one per boundary), each hook scales
+    only its own layer — no compounding. Layer 0 also scales embeddings.
     """
     def grad_hook(grads, state_dict, step):
         if pass_fraction >= 1.0:
             return
-        for li in range(layer + 1):
-            for comp in ['attn_wq', 'attn_wk', 'attn_wv', 'attn_wo', 'mlp_fc1', 'mlp_fc2']:
-                key = f'layer{li}.{comp}'
-                if key in grads:
-                    grads[key] *= pass_fraction
+        for comp in ['attn_wq', 'attn_wk', 'attn_wv', 'attn_wo', 'mlp_fc1', 'mlp_fc2']:
+            key = f'layer{layer}.{comp}'
+            if key in grads:
+                grads[key] *= pass_fraction
         if layer == 0:
             grads['wte'] *= pass_fraction
             grads['wpe'] *= pass_fraction
@@ -479,22 +482,24 @@ def unfreeze_heads(grad_hooks_list, freeze_grad_hooks):
             grad_hooks_list.remove(gh)
 
 
-def make_gradual_noisy_gradients(max_noise_std, ramp_steps):
+def make_gradual_noisy_gradients(max_noise_std, ramp_steps, rng=None):
     """Gradient noise that linearly ramps from 0 to max_noise_std."""
+    _rng = rng if rng is not None else np.random.RandomState()
     def grad_hook(grads, state_dict, step):
         intensity = min(1.0, step / max(1, ramp_steps)) * max_noise_std
         if intensity > 0:
             for k in grads:
-                grads[k] = grads[k] + np.random.randn(*grads[k].shape) * intensity
+                grads[k] = grads[k] + _rng.randn(*grads[k].shape) * intensity
     return grad_hook
 
 
-def make_noisy_gradients_scheduled(noise_std, start_step=0, end_step=float('inf')):
+def make_noisy_gradients_scheduled(noise_std, start_step=0, end_step=float('inf'), rng=None):
     """Gradient noise applied only within [start_step, end_step]."""
+    _rng = rng if rng is not None else np.random.RandomState()
     def grad_hook(grads, state_dict, step):
         if start_step <= step <= end_step:
             for k in grads:
-                grads[k] = grads[k] + np.random.randn(*grads[k].shape) * noise_std
+                grads[k] = grads[k] + _rng.randn(*grads[k].shape) * noise_std
     return grad_hook
 
 

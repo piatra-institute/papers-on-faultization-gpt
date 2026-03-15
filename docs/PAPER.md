@@ -65,7 +65,7 @@ We use a minimal character-level GPT with the following architecture:
 | Vocabulary | ~28 (a-z + special tokens) |
 | Normalization | RMSNorm |
 | Activation | ReLU |
-| Total parameters | ~11,000 |
+| Total parameters | ~13,400 |
 
 The model is implemented in a numpy backend for experiment sweeps. The task is character-level name generation trained on a dataset of ~32k names.
 
@@ -637,7 +637,7 @@ The $n = 300$ results confirm this framing. Some non-significant findings at $n 
 
 ### 5.5 Limitations
 
-**Scale.** The model has 4 layers, 16 dimensions, and ~11,000 parameters. Whether these findings extend to production-scale transformers is unknown. The emergent behaviors (stress inoculation, recovery, regeneration) may be specific to small models with simple loss landscapes, or they may be architectural universals.
+**Scale.** The model has 4 layers, 16 dimensions, and ~13,400 parameters. Whether these findings extend to production-scale transformers is unknown. The emergent behaviors (stress inoculation, recovery, regeneration) may be specific to small models with simple loss landscapes, or they may be architectural universals.
 
 **Task complexity.** Character-level name generation is a toy task. Whether stress inoculation appears in language modeling or other complex tasks is not established.
 
@@ -661,7 +661,7 @@ The empirical findings admit several interpretive framings beyond the neutral cl
 
 **Lens 2: Désœuvrement (Nancy).** Jean-Luc Nancy's concept of *désœuvrement* (unworking) argues that the structure of a collective system becomes visible only when its coordinated work is interrupted (Nancy, 1991). Each of the twelve experiments interrupts the transformer's work — freezing, severing, corrupting, restricting, assembling, destroying, transplanting, conflicting. The interruptions make legible the relational structure that normal operation conceals: redundancy (head freezing), basin convergence (cell-view equivalent convergence), compensatory capacity (recovery, regeneration), and tolerance boundaries (adversarial vs. absent layers). Under this reading, the absence-vs-adversity distinction (Exp 12) maps onto Nancy's distinction between the *withdrawn* member of a community (whose absence is absorbed) and the *hostile* member (whose opposition destroys the work). The tolerance of absence is itself a structural property that perturbation reveals.
 
-**Lens 3: Morphogenetic competency (Levin).** Levin et al. (2024) proposed that computational systems can exhibit morphogenetic competencies analogous to biological development — fault tolerance, delayed gratification, emergent self-organization. Under this reading, stress inoculation is analogous to biological stress hardening, regeneration is analogous to tissue regeneration, chimera convergence is analogous to chimeric organism development, and the transplant null is analogous to the observation that transplanted tissue is remodeled by the host rather than retaining donor identity. The DG null (no perturbation response at any scale) is a point of divergence: biological systems show richer compensatory rerouting than this minimal transformer. Whether this divergence reflects scale (11K vs. billions of parameters) or substrate (gradient descent vs. biochemical signaling) is an open question.
+**Lens 3: Morphogenetic competency (Levin).** Levin et al. (2024) proposed that computational systems can exhibit morphogenetic competencies analogous to biological development — fault tolerance, delayed gratification, emergent self-organization. Under this reading, stress inoculation is analogous to biological stress hardening, regeneration is analogous to tissue regeneration, chimera convergence is analogous to chimeric organism development, and the transplant null is analogous to the observation that transplanted tissue is remodeled by the host rather than retaining donor identity. The DG null (no perturbation response at any scale) is a point of divergence: biological systems show richer compensatory rerouting than this minimal transformer. Whether this divergence reflects scale (~13,400 vs. billions of parameters) or substrate (gradient descent vs. biochemical signaling) is an open question.
 
 These three lenses are compatible. They emphasize different aspects of the same empirical results: the first emphasizes what the optimizer didn't specify, the second emphasizes what perturbation reveals about collective structure, and the third emphasizes cross-substrate comparison of adaptive competencies.
 

@@ -419,6 +419,7 @@ def _forward_backward(tokens, n, state_dict, config, hooks, capture_state=False,
 
     if local_loss:
         # Local-loss mode: each layer receives its own local loss signal
+        # Uses per-layer probe heads to avoid hidden inter-layer coupling
         total_loss = 0.0
         last_local_per_pos = per_position_losses  # fallback
 
@@ -426,8 +427,9 @@ def _forward_backward(tokens, n, state_dict, config, hooks, capture_state=False,
             lf = fwd_layers[li]
             X_after = lf['X_after_mlp']  # (n, n_embd)
 
-            # Local logits and loss
-            local_logits = X_after @ sd['lm_head'].T  # (n, vocab)
+            # Local logits and loss (using per-layer probe head)
+            probe_key = f'probe_head_{li}'
+            local_logits = X_after @ sd[probe_key].T  # (n, vocab)
             local_probs = _softmax(local_logits)
             local_per_pos = [-math.log(local_probs[i, target_ids[i]] + 1e-10)
                              for i in range(n)]
@@ -441,11 +443,11 @@ def _forward_backward(tokens, n, state_dict, config, hooks, capture_state=False,
                 local_dlogits[i, target_ids[i]] -= 1.0
             local_dlogits /= n
 
-            # lm_head gradients (accumulated from all layers)
-            grads['lm_head'] += local_dlogits.T @ X_after
+            # Probe head gradients (per-layer, no shared lm_head coupling)
+            grads[probe_key] += local_dlogits.T @ X_after
 
             # dX w.r.t. layer output
-            dX = local_dlogits @ sd['lm_head']
+            dX = local_dlogits @ sd[probe_key]
 
             # Backward through layer li
             dX = _backward_through_layer(
@@ -680,6 +682,10 @@ def init_state_dict(config, seed=42):
         sd[f'layer{i}.mlp_fc1'] = rng.randn(4 * config['n_embd'], config['n_embd']) * std
         sd[f'layer{i}.mlp_fc2'] = rng.randn(config['n_embd'], 4 * config['n_embd']) * std
 
+    # Per-layer probe heads for local-loss mode (independent per layer)
+    for i in range(config['n_layer']):
+        sd[f'probe_head_{i}'] = rng.randn(config['vocab_size'], config['n_embd']) * std
+
     # params_list: list of (name, row_idx) tuples for compatibility
     # But for the numpy backend, grad_hooks receive (grads_dict, state_dict, step)
     # We keep params_list as a flat list of references for API compat
@@ -790,6 +796,7 @@ def train(state_dict, params, config, train_config, docs, uchars, BOS,
         hooks = Hooks()
     if probe is None:
         probe = Probe(detail_level=tc.detail_level)
+    np.random.seed(seed)
     rng = random.Random(seed)
 
     doc_order = list(range(len(docs)))
@@ -882,6 +889,7 @@ def train_with_state(state_dict, params, config, train_config, docs, uchars, BOS
         hooks = Hooks()
     if probe is None:
         probe = Probe(detail_level=tc.detail_level)
+    np.random.seed(seed)
     rng = random.Random(seed)
 
     doc_order = list(range(len(docs)))
@@ -1014,6 +1022,11 @@ def assemble_chimera(sd_a, sd_b, layer_assignment, config):
         source = sd_a if layer_assignment.get(li, 'A') == 'A' else sd_b
         for key in get_layer_keys(li):
             sd[key] = source[key].copy()
+    # Per-layer probe heads from A
+    for li in range(config['n_layer']):
+        probe_key = f'probe_head_{li}'
+        if probe_key in sd_a:
+            sd[probe_key] = sd_a[probe_key].copy()
     return sd
 
 

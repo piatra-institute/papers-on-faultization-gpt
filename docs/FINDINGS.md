@@ -461,7 +461,7 @@ The empirical findings admit several interpretive framings beyond the neutral cl
 
 ## 18. Limitations
 
-- **Scale:** 4 layers, 16 dimensions, 16 heads, ~11K params. The emergent behaviors (stress inoculation, recovery, regeneration) may be specific to small models, or they may be architectural universals.
+- **Scale:** 4 layers, 16 dimensions, 16 heads, ~13,400 params. The emergent behaviors (stress inoculation, recovery, regeneration) may be specific to small models, or they may be architectural universals.
 - **Task complexity:** Character-level name generation is a toy task. Whether stress inoculation appears in language modeling or other complex tasks is not established.
 - **Training duration:** 200 steps per phase. Gradual-exposure tolerance may not persist at longer horizons.
 - **Transplant design:** Both models trained on same task/data. Cross-task transplantation might show different results.

@@ -163,7 +163,8 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
         elif pt == 'noise_injection':
             hook_name = pp.get('hook_name', 'emb')
             noise_std = pp.get('noise_std', 0.1)
-            name, fn = make_noise_injection(hook_name, noise_std)
+            name, fn = make_noise_injection(hook_name, noise_std,
+                                            rng=random.Random(seed + 4000))
             pending_hooks.append((name, fn))
 
         elif pt == 'stop_gradient':
@@ -178,7 +179,8 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
 
         elif pt == 'noisy_gradients':
             noise_std = pp.get('noise_std', 0.01)
-            grad_hooks.append(make_noisy_gradients(noise_std))
+            grad_hooks.append(make_noisy_gradients(noise_std,
+                              rng=np.random.RandomState(seed + 7000)))
 
         elif pt == 'sign_only_gradients':
             grad_hooks.append(make_sign_only_gradients())
@@ -193,14 +195,18 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
 
         elif pt == 'dropout':
             drop_prob = pp.get('drop_prob', 0.1)
+            drop_rng = random.Random(seed + 5000)
             for li in range(config['n_layer']):
-                name, fn = make_dropout(f'mlp_hidden.{li}', drop_prob)
+                name, fn = make_dropout(f'mlp_hidden.{li}', drop_prob,
+                                        rng=drop_rng)
                 pending_hooks.append((name, fn))
 
         elif pt == 'stochastic_relu':
             flip_prob = pp.get('flip_prob', 0.05)
+            srelu_rng = random.Random(seed + 6000)
             for li in range(config['n_layer']):
-                name, fn = make_stochastic_relu(f'mlp_hidden.{li}', flip_prob)
+                name, fn = make_stochastic_relu(f'mlp_hidden.{li}', flip_prob,
+                                                rng=srelu_rng)
                 pending_hooks.append((name, fn))
 
         elif pt == 'windowed_attention':
@@ -283,9 +289,16 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
         _apply_perturbation(pt, pp, hooks, pending_hooks, grad_hooks, config,
                             exp_config.seed)
 
-    # --- Apply schedule wrapping and register pending hooks ---
+    # --- Validate schedule + grad hook compatibility ---
     sched = exp_config.schedule
     sp = exp_config.schedule_params
+    if grad_hooks and sched != 'chronic':
+        raise ValueError(
+            f"Schedule '{sched}' is not supported with gradient hooks. "
+            f"Gradient hooks only support 'chronic' schedule."
+        )
+
+    # --- Apply schedule wrapping and register pending hooks ---
     for name, fn in pending_hooks:
         if sched == 'acute':
             fn = schedule_acute(fn, sp.get('start_step', 0), sp.get('end_step', 100))
@@ -1213,7 +1226,8 @@ def experiment_gradual_vs_sudden(num_reps=5, num_steps=200, n_layer=4, result_su
 
         # B: Sudden noise (all steps)
         sd_b, params_b = init_state_dict(config, seed=seed)
-        gh_b = [make_noisy_gradients(noise_std)]
+        gh_b = [make_noisy_gradients(noise_std,
+                rng=np.random.RandomState(seed + 7000))]
         p_b, _, _ = train_with_state(
             sd_b, params_b, config, tc, docs, uchars, BOS,
             grad_hooks=gh_b, seed=seed, total_steps=num_steps)
@@ -1224,7 +1238,8 @@ def experiment_gradual_vs_sudden(num_reps=5, num_steps=200, n_layer=4, result_su
 
         # C: Gradual ramp
         sd_c, params_c = init_state_dict(config, seed=seed)
-        gh_c = [make_gradual_noisy_gradients(noise_std, num_steps)]
+        gh_c = [make_gradual_noisy_gradients(noise_std, num_steps,
+                rng=np.random.RandomState(seed + 7000))]
         p_c, _, _ = train_with_state(
             sd_c, params_c, config, tc, docs, uchars, BOS,
             grad_hooks=gh_c, seed=seed, total_steps=num_steps)
@@ -1235,7 +1250,8 @@ def experiment_gradual_vs_sudden(num_reps=5, num_steps=200, n_layer=4, result_su
 
         # D: Sudden onset at halfway
         sd_d, params_d = init_state_dict(config, seed=seed)
-        gh_d = [make_noisy_gradients_scheduled(noise_std, start_step=num_steps // 2)]
+        gh_d = [make_noisy_gradients_scheduled(noise_std, start_step=num_steps // 2,
+                rng=np.random.RandomState(seed + 7000))]
         p_d, _, _ = train_with_state(
             sd_d, params_d, config, tc, docs, uchars, BOS,
             grad_hooks=gh_d, seed=seed, total_steps=num_steps)

@@ -157,7 +157,7 @@ n_head = 4            # 4 heads per layer = 16 total heads
 head_dim = 4          # n_embd // n_head
 block_size = 16       # matches microgpt
 vocab_size = ~28      # 26 letters + BOS + maybe a few special tokens
-total params ≈ 11,000 # still fully transparent
+total params ≈ 13,400 # still fully transparent
 ```
 
 ### Training Configuration

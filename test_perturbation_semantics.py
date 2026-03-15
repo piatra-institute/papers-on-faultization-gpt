@@ -8,6 +8,10 @@ Verifies that:
 1. Frozen heads still compute in forward pass but receive zero gradients
 2. Local-loss mode gives each layer gradients from its own local loss only
 3. Exp 6 composite conditions apply both forward AND gradient perturbations
+4. Per-layer probe heads are independent (Fix 1)
+5. Stochastic perturbations are reproducible with seeded RNGs (Fix 2)
+6. Partial stop-gradient fractions don't compound (Fix 3)
+7. Schedule + grad_hook combos are rejected (Fix 4)
 """
 
 import numpy as np
@@ -17,6 +21,7 @@ from morphogpt_np import (
 )
 from perturbations_np import (
     make_freeze_head_params, freeze_random_heads, freeze_specific_heads,
+    make_noisy_gradients, make_partial_stop_gradient_grad_hook,
 )
 
 
@@ -220,10 +225,207 @@ def test_validation_evaluation():
           f"final val_loss={result['probe'].val_losses[-1][1]:.4f}")
 
 
+# ============================================================================
+# New regression tests for peer-review fixes
+# ============================================================================
+
+def test_probe_head_independence():
+    """Fix 1: Per-layer probe heads are independent — zeroing probe_head_3
+    should not change layer 0's gradients in local-loss mode."""
+    print("Test 5 (Fix 1): Per-layer probe head independence...")
+    train_docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=4, n_embd=16, n_head=4, vocab_size=vocab_size)
+
+    # Run 1: normal local-loss
+    sd1, _ = init_state_dict(config, seed=42)
+    hooks = Hooks()
+    tokens = tokenize(train_docs[0], uchars, BOS)
+    n = min(config['block_size'], len(tokens) - 1)
+    _, _, grads1, _ = _forward_backward(tokens, n, sd1, config, hooks, local_loss=True)
+    layer0_grad_1 = grads1['layer0.attn_wq'].copy()
+
+    # Run 2: zero out probe_head_3, re-run
+    sd2, _ = init_state_dict(config, seed=42)
+    sd2['probe_head_3'] = np.zeros_like(sd2['probe_head_3'])
+    _, _, grads2, _ = _forward_backward(tokens, n, sd2, config, hooks, local_loss=True)
+    layer0_grad_2 = grads2['layer0.attn_wq'].copy()
+
+    # Layer 0 gradients should be identical regardless of probe_head_3
+    assert np.allclose(layer0_grad_1, layer0_grad_2, atol=1e-10), \
+        "Zeroing probe_head_3 should not affect layer 0 gradients"
+
+    # But layer 3 gradients should differ
+    assert not np.allclose(grads1['layer3.attn_wq'], grads2['layer3.attn_wq'], atol=1e-10), \
+        "Zeroing probe_head_3 should affect layer 3 gradients"
+
+    # Verify probe heads exist and lm_head is NOT used in local-loss
+    assert 'probe_head_0' in sd1, "probe_head_0 should exist"
+    assert 'probe_head_3' in sd1, "probe_head_3 should exist"
+
+    # lm_head should have zero gradients in local-loss mode (not used)
+    assert np.allclose(grads1['lm_head'], 0, atol=1e-10), \
+        "lm_head should have zero gradients in local-loss mode"
+
+    print("  PASS: probe heads are independent per layer")
+
+
+def test_stochastic_reproducibility():
+    """Fix 2: Stochastic perturbations are reproducible with seeded RNGs."""
+    print("Test 6 (Fix 2): Stochastic gradient noise reproducibility...")
+
+    # Create two identical seeded RNGs
+    rng1 = np.random.RandomState(42)
+    rng2 = np.random.RandomState(42)
+
+    hook1 = make_noisy_gradients(noise_std=0.1, rng=rng1)
+    hook2 = make_noisy_gradients(noise_std=0.1, rng=rng2)
+
+    # Create dummy gradients
+    grads1 = {'w': np.ones((4, 4)), 'b': np.ones((4,))}
+    grads2 = {'w': np.ones((4, 4)), 'b': np.ones((4,))}
+    sd = {'w': np.zeros((4, 4)), 'b': np.zeros((4,))}
+
+    # Apply hooks
+    hook1(grads1, sd, step=0)
+    hook2(grads2, sd, step=0)
+
+    # Results should be identical
+    assert np.allclose(grads1['w'], grads2['w']), \
+        "Seeded noisy gradients should produce identical results"
+    assert np.allclose(grads1['b'], grads2['b']), \
+        "Seeded noisy gradients should produce identical results"
+
+    # Should differ from unperturbed
+    assert not np.allclose(grads1['w'], np.ones((4, 4))), \
+        "Noisy gradients should differ from original"
+
+    # Apply again — should produce different noise (RNG advances)
+    grads3 = {'w': np.ones((4, 4)), 'b': np.ones((4,))}
+    grads4 = {'w': np.ones((4, 4)), 'b': np.ones((4,))}
+    hook1(grads3, sd, step=1)
+    hook2(grads4, sd, step=1)
+    assert np.allclose(grads3['w'], grads4['w']), \
+        "Second call should also be identical with same seed"
+
+    print("  PASS: seeded RNGs produce reproducible stochastic perturbations")
+
+
+def test_non_compounding_fractions():
+    """Fix 3: With pass_fraction=0.5 and n_layer=4, each boundary layer
+    gets exactly 0.5 scaling, not compounded."""
+    print("Test 7 (Fix 3): Non-compounding gradient fractions...")
+    train_docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=4, n_embd=16, n_head=4, vocab_size=vocab_size)
+    sd, _ = init_state_dict(config, seed=42)
+
+    hooks = Hooks()
+    tokens = tokenize(train_docs[0], uchars, BOS)
+    n = min(config['block_size'], len(tokens) - 1)
+
+    # Get unscaled gradients
+    _, _, grads_orig, _ = _forward_backward(tokens, n, sd, config, hooks)
+
+    # Get scaled gradients (hooks at boundaries 0, 1, 2 with pass_fraction=0.5)
+    _, _, grads_scaled, _ = _forward_backward(tokens, n, sd, config, hooks)
+    pass_fraction = 0.5
+    for boundary in range(config['n_layer'] - 1):  # boundaries 0, 1, 2
+        gh = make_partial_stop_gradient_grad_hook(boundary, pass_fraction, config)
+        gh(grads_scaled, sd, 0)
+
+    # Layer 0: should be scaled by 0.5 (only from hook 0)
+    key0 = 'layer0.attn_wq'
+    ratio0 = grads_scaled[key0] / (grads_orig[key0] + 1e-20)
+    nonzero_mask0 = np.abs(grads_orig[key0]) > 1e-15
+    if np.any(nonzero_mask0):
+        actual_ratio0 = np.median(ratio0[nonzero_mask0])
+        assert abs(actual_ratio0 - 0.5) < 0.01, \
+            f"Layer 0 should be scaled by 0.5, got {actual_ratio0:.4f}"
+
+    # Layer 1: should be scaled by 0.5 (only from hook 1)
+    key1 = 'layer1.attn_wq'
+    ratio1 = grads_scaled[key1] / (grads_orig[key1] + 1e-20)
+    nonzero_mask1 = np.abs(grads_orig[key1]) > 1e-15
+    if np.any(nonzero_mask1):
+        actual_ratio1 = np.median(ratio1[nonzero_mask1])
+        assert abs(actual_ratio1 - 0.5) < 0.01, \
+            f"Layer 1 should be scaled by 0.5, got {actual_ratio1:.4f}"
+
+    # Layer 2: should be scaled by 0.5 (only from hook 2)
+    key2 = 'layer2.attn_wq'
+    ratio2 = grads_scaled[key2] / (grads_orig[key2] + 1e-20)
+    nonzero_mask2 = np.abs(grads_orig[key2]) > 1e-15
+    if np.any(nonzero_mask2):
+        actual_ratio2 = np.median(ratio2[nonzero_mask2])
+        assert abs(actual_ratio2 - 0.5) < 0.01, \
+            f"Layer 2 should be scaled by 0.5, got {actual_ratio2:.4f}"
+
+    # Layer 3: should be unscaled (no hook)
+    key3 = 'layer3.attn_wq'
+    assert np.allclose(grads_scaled[key3], grads_orig[key3]), \
+        "Layer 3 (top) should be unscaled"
+
+    # Embeddings: should be scaled by 0.5 (from hook 0)
+    assert np.allclose(grads_scaled['wte'], grads_orig['wte'] * 0.5, atol=1e-15), \
+        "Embeddings should be scaled by 0.5 from boundary 0"
+
+    print("  PASS: each boundary layer gets exactly 0.5 scaling, no compounding")
+
+
+def test_schedule_grad_hook_rejection():
+    """Fix 4: ValueError raised when schedule != 'chronic' with grad_hook perturbations."""
+    print("Test 8 (Fix 4): Schedule + grad_hook rejection...")
+    from experiments_np import ExperimentConfig, run_experiment
+
+    train_docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+
+    # noisy_gradients produces a grad_hook; schedule='acute' should be rejected
+    cfg = ExperimentConfig(
+        name='test_schedule_rejection',
+        num_steps=10,
+        perturbation_type='noisy_gradients',
+        perturbation_params={'noise_std': 0.01},
+        schedule='acute',
+        schedule_params={'start_step': 0, 'end_step': 5},
+        seed=42,
+        print_progress=False,
+    )
+
+    raised = False
+    try:
+        run_experiment(cfg, train_docs, uchars, BOS, vocab_size, val_docs=val_docs)
+    except ValueError as e:
+        raised = True
+        assert 'acute' in str(e).lower() or 'schedule' in str(e).lower(), \
+            f"Error message should mention schedule, got: {e}"
+
+    assert raised, "Should raise ValueError for schedule='acute' with grad hooks"
+
+    # Verify that 'chronic' schedule with grad hooks still works
+    cfg_ok = ExperimentConfig(
+        name='test_schedule_ok',
+        num_steps=10,
+        perturbation_type='noisy_gradients',
+        perturbation_params={'noise_std': 0.01},
+        schedule='chronic',
+        seed=42,
+        print_progress=False,
+    )
+    result = run_experiment(cfg_ok, train_docs, uchars, BOS, vocab_size,
+                            val_docs=val_docs)
+    assert result['summary']['final_loss'] > 0, \
+        "chronic schedule with grad hooks should work"
+
+    print("  PASS: non-chronic schedules with grad hooks are rejected")
+
+
 if __name__ == '__main__':
     test_frozen_head_forward_nonzero()
     test_frozen_head_zero_gradients()
     test_local_loss_independence()
     test_composite_perturbation()
     test_validation_evaluation()
+    test_probe_head_independence()
+    test_stochastic_reproducibility()
+    test_non_compounding_fractions()
+    test_schedule_grad_hook_rejection()
     print("\n=== ALL SEMANTIC TESTS PASSED ===")
