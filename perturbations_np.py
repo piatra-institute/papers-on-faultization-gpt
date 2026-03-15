@@ -51,12 +51,16 @@ def schedule_progressive(hook_fn, intensity_fn):
 # A4 + A10: FROZEN / DAMAGED COMPONENTS
 # ============================================================================
 
-def make_zero_head(layer, head, head_dim):
-    """Zero a head's output. Returns (hook_name, hook_fn)."""
+def make_ablate_head(layer, head, head_dim):
+    """Ablate (zero) a head's output. Returns (hook_name, hook_fn)."""
     target = f'head_out.{layer}.{head}'
     def hook(head_out, step=0, **kw):
         return np.zeros(head_dim)
     return target, hook
+
+
+# Backward-compatible alias
+make_zero_head = make_ablate_head
 
 
 def make_noise_head(layer, head, head_dim, noise_std=0.1, rng=None):
@@ -79,7 +83,7 @@ def make_freeze_params(param_names):
 
 
 def make_freeze_head_params(layer, head, n_embd, head_dim):
-    """Freeze specific head's Q, K, V gradients."""
+    """Freeze specific head's Q, K, V, Wo gradients (true parameter freezing)."""
     hs = head * head_dim
     he = hs + head_dim
     def grad_hook(grads, state_dict, step):
@@ -87,6 +91,10 @@ def make_freeze_head_params(layer, head, n_embd, head_dim):
             key = f'layer{layer}.{comp}'
             if key in grads:
                 grads[key][hs:he, :] = 0
+        # Wo: columns correspond to head slices (input dim)
+        wo_key = f'layer{layer}.attn_wo'
+        if wo_key in grads:
+            grads[wo_key][:, hs:he] = 0
     return grad_hook
 
 
@@ -431,36 +439,44 @@ def register_perturbations(hooks, perturbation_list):
         hooks.register(name, fn)
 
 
-def freeze_random_heads(hooks, config, num_heads, rng=None):
+def freeze_random_heads(config, num_heads, rng=None):
+    """Freeze random heads via gradient zeroing (true parameter freezing).
+    Returns (frozen_head_list, grad_hooks_list)."""
     _rng = rng or random.Random()
     n_layer = config['n_layer']
     n_head = config['n_head']
+    n_embd = config['n_embd']
     head_dim = config['head_dim']
 
     all_heads = [(li, h) for li in range(n_layer) for h in range(n_head)]
     _rng.shuffle(all_heads)
     frozen = all_heads[:num_heads]
 
+    freeze_grad_hooks = []
     for li, h in frozen:
-        name, fn = make_zero_head(li, h, head_dim)
-        hooks.register(name, fn)
+        freeze_grad_hooks.append(
+            make_freeze_head_params(li, h, n_embd, head_dim))
 
-    return frozen
+    return frozen, freeze_grad_hooks
 
 
-def freeze_specific_heads(hooks, head_list, config):
-    """Freeze a specific list of (layer, head) tuples. Returns the list."""
+def freeze_specific_heads(head_list, config):
+    """Freeze a specific list of (layer, head) tuples via gradient zeroing.
+    Returns (head_list, grad_hooks_list)."""
+    n_embd = config['n_embd']
     head_dim = config['head_dim']
+    freeze_grad_hooks = []
     for li, h in head_list:
-        name, fn = make_zero_head(li, h, head_dim)
-        hooks.register(name, fn)
-    return head_list
+        freeze_grad_hooks.append(
+            make_freeze_head_params(li, h, n_embd, head_dim))
+    return head_list, freeze_grad_hooks
 
 
-def unfreeze_heads(hooks, head_list):
-    """Remove freeze hooks for specific heads."""
-    for li, h in head_list:
-        hooks.clear(f'head_out.{li}.{h}')
+def unfreeze_heads(grad_hooks_list, freeze_grad_hooks):
+    """Remove freeze grad hooks from the active grad_hooks list."""
+    for gh in freeze_grad_hooks:
+        if gh in grad_hooks_list:
+            grad_hooks_list.remove(gh)
 
 
 def make_gradual_noisy_gradients(max_noise_std, ramp_steps):

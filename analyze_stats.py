@@ -60,6 +60,12 @@ def get_metric(entries, metric='final_loss'):
         return [e['summary']['dg_index'] for e in entries]
     elif metric == 'min_loss':
         return [e['summary']['min_loss'] for e in entries]
+    elif metric == 'val_final_loss':
+        return [e['summary'].get('val_final_loss', e['summary']['final_loss'])
+                for e in entries]
+    elif metric == 'val_mean_loss':
+        return [e['summary'].get('val_mean_loss', e['summary'].get('mean_loss', 0))
+                for e in entries]
     raise ValueError(f"Unknown metric: {metric}")
 
 
@@ -73,6 +79,27 @@ def sig_marker(p):
     elif p < 0.10:
         return '†'
     return 'ns'
+
+
+def print_val_summary(groups, baseline_name='baseline', condition_names=None):
+    """Print validation loss summary if available."""
+    if condition_names is None:
+        condition_names = [n for n in groups if n != baseline_name]
+    bl = groups.get(baseline_name, [])
+    if not bl or 'val_final_loss' not in bl[0].get('summary', {}):
+        return  # no val data
+    print("\n--- Validation Loss ---")
+    bl_val = get_metric(bl, 'val_final_loss')
+    print(f"  {baseline_name:30s}: val_final={np.mean(bl_val):.4f}±{np.std(bl_val, ddof=1):.4f}")
+    for name in condition_names:
+        cond = groups.get(name, [])
+        if not cond:
+            continue
+        cond_val = get_metric(cond, 'val_final_loss')
+        if len(cond_val) == len(bl_val):
+            print_comparison(f"{name} (val)", bl_val, cond_val)
+        else:
+            print(f"  {name:30s}: val_final={np.mean(cond_val):.4f}±{np.std(cond_val, ddof=1):.4f}")
 
 
 def print_comparison(label, baseline_vals, condition_vals, paired=True):

@@ -16,9 +16,10 @@ from morphogpt_np import (
     make_config, init_state_dict, load_dataset, train, generate,
     train_with_state, get_layer_keys, reset_layer, transplant_layer,
     assemble_chimera, copy_state_dict, tokenize, _forward_backward,
+    _evaluate,
 )
 from perturbations_np import (
-    make_zero_head, make_freeze_params,
+    make_zero_head, make_ablate_head, make_freeze_params,
     schedule_chronic, schedule_acute, schedule_stochastic,
     make_noise_head,
     make_noise_injection, make_stop_gradient, make_noisy_gradients,
@@ -75,6 +76,9 @@ class ExperimentConfig:
     schedule: str = 'chronic'
     schedule_params: dict = field(default_factory=dict)
 
+    # Local loss (cell-view mode)
+    local_loss: bool = False
+
     # Repetitions
     seed: int = 42
     num_reps: int = 1
@@ -93,10 +97,11 @@ class ExperimentConfig:
 # Run a single experiment
 # ============================================================================
 
-def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None):
+def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None,
+                   val_docs=None):
     """Run a single experiment. Returns result dict."""
     if docs is None:
-        docs, uchars, BOS, vocab_size = load_dataset()
+        docs, val_docs, uchars, BOS, vocab_size = load_dataset()
 
     config = make_config(
         n_layer=exp_config.n_layer,
@@ -125,145 +130,158 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
     frozen_heads = []
     pending_hooks = []
 
-    if pt == 'none':
-        pass
+    def _apply_perturbation(pt, pp, hooks, pending_hooks, grad_hooks, config, seed):
+        """Dispatch a single perturbation type. Modifies hooks/grad_hooks in place."""
+        nonlocal frozen_heads
+        if pt == 'none':
+            pass
 
-    elif pt == 'freeze_heads':
-        num = pp.get('num_heads', 1)
-        rng = random.Random(exp_config.seed + 1000)
-        frozen_heads = freeze_random_heads(hooks, config, num, rng=rng)
+        elif pt == 'freeze_heads':
+            num = pp.get('num_heads', 1)
+            rng = random.Random(seed + 1000)
+            frozen_heads, freeze_gh = freeze_random_heads(config, num, rng=rng)
+            grad_hooks.extend(freeze_gh)
 
-    elif pt == 'zero_head':
-        layer = pp.get('layer', 0)
-        head = pp.get('head', 0)
-        name, fn = make_zero_head(layer, head, config['head_dim'])
-        pending_hooks.append((name, fn))
-
-    elif pt == 'noise_heads':
-        num = pp.get('num_heads', 1)
-        noise_std = pp.get('noise_std', 0.1)
-        rng = random.Random(exp_config.seed + 1000)
-        all_heads = [(li, h) for li in range(config['n_layer'])
-                     for h in range(config['n_head'])]
-        rng.shuffle(all_heads)
-        for li, h in all_heads[:num]:
-            name, fn = make_noise_head(li, h, config['head_dim'],
-                                       noise_std=noise_std, rng=rng)
+        elif pt == 'zero_head':
+            layer = pp.get('layer', 0)
+            head = pp.get('head', 0)
+            name, fn = make_zero_head(layer, head, config['head_dim'])
             pending_hooks.append((name, fn))
 
-    elif pt == 'noise_injection':
-        hook_name = pp.get('hook_name', 'emb')
-        noise_std = pp.get('noise_std', 0.1)
-        name, fn = make_noise_injection(hook_name, noise_std)
-        pending_hooks.append((name, fn))
+        elif pt == 'noise_heads':
+            num = pp.get('num_heads', 1)
+            noise_std = pp.get('noise_std', 0.1)
+            rng = random.Random(seed + 1000)
+            all_heads = [(li, h) for li in range(config['n_layer'])
+                         for h in range(config['n_head'])]
+            rng.shuffle(all_heads)
+            for li, h in all_heads[:num]:
+                name, fn = make_noise_head(li, h, config['head_dim'],
+                                           noise_std=noise_std, rng=rng)
+                pending_hooks.append((name, fn))
 
-    elif pt == 'stop_gradient':
-        layers = pp.get('layers', 'all')
-        if layers == 'all':
-            apply_stop_gradient_all(hooks, config, grad_hooks)
+        elif pt == 'noise_injection':
+            hook_name = pp.get('hook_name', 'emb')
+            noise_std = pp.get('noise_std', 0.1)
+            name, fn = make_noise_injection(hook_name, noise_std)
+            pending_hooks.append((name, fn))
+
+        elif pt == 'stop_gradient':
+            layers = pp.get('layers', 'all')
+            if layers == 'all':
+                apply_stop_gradient_all(hooks, config, grad_hooks)
+            else:
+                for li in layers:
+                    name, fn = make_stop_gradient(li)
+                    pending_hooks.append((name, fn))
+                    grad_hooks.append(make_stop_gradient_grad_hook(li, config))
+
+        elif pt == 'noisy_gradients':
+            noise_std = pp.get('noise_std', 0.01)
+            grad_hooks.append(make_noisy_gradients(noise_std))
+
+        elif pt == 'sign_only_gradients':
+            grad_hooks.append(make_sign_only_gradients())
+
+        elif pt == 'quantized_gradients':
+            levels = pp.get('levels', 3)
+            grad_hooks.append(make_quantized_gradients(levels))
+
+        elif pt == 'delayed_gradients':
+            delay = pp.get('delay_steps', 5)
+            grad_hooks.append(make_delayed_gradients(delay))
+
+        elif pt == 'dropout':
+            drop_prob = pp.get('drop_prob', 0.1)
+            for li in range(config['n_layer']):
+                name, fn = make_dropout(f'mlp_hidden.{li}', drop_prob)
+                pending_hooks.append((name, fn))
+
+        elif pt == 'stochastic_relu':
+            flip_prob = pp.get('flip_prob', 0.05)
+            for li in range(config['n_layer']):
+                name, fn = make_stochastic_relu(f'mlp_hidden.{li}', flip_prob)
+                pending_hooks.append((name, fn))
+
+        elif pt == 'windowed_attention':
+            window = pp.get('window_size', 4)
+            for li in range(config['n_layer']):
+                for h in range(config['n_head']):
+                    name, fn = make_windowed_attention(li, h, window)
+                    pending_hooks.append((name, fn))
+
+        elif pt == 'sparse_attention':
+            keep_prob = pp.get('keep_prob', 0.5)
+            rng = random.Random(seed + 2000)
+            for li in range(config['n_layer']):
+                for h in range(config['n_head']):
+                    name, fn = make_sparse_attention(li, h, keep_prob, rng=rng)
+                    pending_hooks.append((name, fn))
+
+        elif pt == 'async_updates':
+            freqs = pp.get('layer_frequencies', {0: 1, 1: 2, 2: 5, 3: 10})
+            grad_hooks.append(make_async_updates(freqs))
+
+        elif pt == 'update_budget':
+            fraction = pp.get('budget_fraction', 0.5)
+            grad_hooks.append(make_update_budget(fraction))
+
+        elif pt == 'adversarial_heads':
+            num = pp.get('num_heads', 1)
+            rng = random.Random(seed + 3000)
+            all_heads = [(li, h) for li in range(config['n_layer'])
+                         for h in range(config['n_head'])]
+            rng.shuffle(all_heads)
+            for li, h in all_heads[:num]:
+                grad_hooks.append(make_adversarial_head(li, h, config['head_dim']))
+
+        elif pt == 'freeze_params':
+            param_names = pp.get('param_names', [])
+            grad_hooks.append(make_freeze_params(param_names))
+
+        elif pt == 'layered_vision':
+            radius_per_layer = pp.get('radius_per_layer', {})
+            hook_pairs = make_layered_vision(config, radius_per_layer)
+            pending_hooks.extend(hook_pairs)
+
+        elif pt == 'partial_stop_gradient':
+            layers = pp.get('layers', 'all')
+            pass_fraction = pp.get('pass_fraction', 0.5)
+            if layers == 'all':
+                for li in range(config['n_layer'] - 1):
+                    name, fn = make_partial_stop_gradient(li, pass_fraction)
+                    pending_hooks.append((name, fn))
+                    grad_hooks.append(
+                        make_partial_stop_gradient_grad_hook(li, pass_fraction, config))
+            else:
+                for li in layers:
+                    name, fn = make_partial_stop_gradient(li, pass_fraction)
+                    pending_hooks.append((name, fn))
+                    grad_hooks.append(
+                        make_partial_stop_gradient_grad_hook(li, pass_fraction, config))
+
+        elif pt == 'threatening_drive':
+            strength = pp.get('strength', 0.1)
+            for li in range(config['n_layer']):
+                for h in range(config['n_head']):
+                    grad_hooks.append(
+                        make_threatening_drive(li, h, config['head_dim'], strength))
+
+        elif pt == 'round_robin_updates':
+            period = pp.get('period', 1)
+            grad_hooks.append(make_round_robin_updates(config, period))
+
         else:
-            for li in layers:
-                name, fn = make_stop_gradient(li)
-                pending_hooks.append((name, fn))
-                grad_hooks.append(make_stop_gradient_grad_hook(li, config))
+            raise ValueError(f"Unknown perturbation type: {pt}")
 
-    elif pt == 'noisy_gradients':
-        noise_std = pp.get('noise_std', 0.01)
-        grad_hooks.append(make_noisy_gradients(noise_std))
-
-    elif pt == 'sign_only_gradients':
-        grad_hooks.append(make_sign_only_gradients())
-
-    elif pt == 'quantized_gradients':
-        levels = pp.get('levels', 3)
-        grad_hooks.append(make_quantized_gradients(levels))
-
-    elif pt == 'delayed_gradients':
-        delay = pp.get('delay_steps', 5)
-        grad_hooks.append(make_delayed_gradients(delay))
-
-    elif pt == 'dropout':
-        drop_prob = pp.get('drop_prob', 0.1)
-        for li in range(config['n_layer']):
-            name, fn = make_dropout(f'mlp_hidden.{li}', drop_prob)
-            pending_hooks.append((name, fn))
-
-    elif pt == 'stochastic_relu':
-        flip_prob = pp.get('flip_prob', 0.05)
-        for li in range(config['n_layer']):
-            name, fn = make_stochastic_relu(f'mlp_hidden.{li}', flip_prob)
-            pending_hooks.append((name, fn))
-
-    elif pt == 'windowed_attention':
-        window = pp.get('window_size', 4)
-        for li in range(config['n_layer']):
-            for h in range(config['n_head']):
-                name, fn = make_windowed_attention(li, h, window)
-                pending_hooks.append((name, fn))
-
-    elif pt == 'sparse_attention':
-        keep_prob = pp.get('keep_prob', 0.5)
-        rng = random.Random(exp_config.seed + 2000)
-        for li in range(config['n_layer']):
-            for h in range(config['n_head']):
-                name, fn = make_sparse_attention(li, h, keep_prob, rng=rng)
-                pending_hooks.append((name, fn))
-
-    elif pt == 'async_updates':
-        freqs = pp.get('layer_frequencies', {0: 1, 1: 2, 2: 5, 3: 10})
-        grad_hooks.append(make_async_updates(freqs))
-
-    elif pt == 'update_budget':
-        fraction = pp.get('budget_fraction', 0.5)
-        grad_hooks.append(make_update_budget(fraction))
-
-    elif pt == 'adversarial_heads':
-        num = pp.get('num_heads', 1)
-        rng = random.Random(exp_config.seed + 3000)
-        all_heads = [(li, h) for li in range(config['n_layer'])
-                     for h in range(config['n_head'])]
-        rng.shuffle(all_heads)
-        for li, h in all_heads[:num]:
-            grad_hooks.append(make_adversarial_head(li, h, config['head_dim']))
-
-    elif pt == 'freeze_params':
-        param_names = pp.get('param_names', [])
-        grad_hooks.append(make_freeze_params(param_names))
-
-    elif pt == 'layered_vision':
-        radius_per_layer = pp.get('radius_per_layer', {})
-        hook_pairs = make_layered_vision(config, radius_per_layer)
-        pending_hooks.extend(hook_pairs)
-
-    elif pt == 'partial_stop_gradient':
-        layers = pp.get('layers', 'all')
-        pass_fraction = pp.get('pass_fraction', 0.5)
-        if layers == 'all':
-            for li in range(config['n_layer'] - 1):
-                name, fn = make_partial_stop_gradient(li, pass_fraction)
-                pending_hooks.append((name, fn))
-                grad_hooks.append(
-                    make_partial_stop_gradient_grad_hook(li, pass_fraction, config))
-        else:
-            for li in layers:
-                name, fn = make_partial_stop_gradient(li, pass_fraction)
-                pending_hooks.append((name, fn))
-                grad_hooks.append(
-                    make_partial_stop_gradient_grad_hook(li, pass_fraction, config))
-
-    elif pt == 'threatening_drive':
-        strength = pp.get('strength', 0.1)
-        for li in range(config['n_layer']):
-            for h in range(config['n_head']):
-                grad_hooks.append(
-                    make_threatening_drive(li, h, config['head_dim'], strength))
-
-    elif pt == 'round_robin_updates':
-        period = pp.get('period', 1)
-        grad_hooks.append(make_round_robin_updates(config, period))
-
+    if pt == 'composite':
+        for sub in pp.get('perturbations', []):
+            _apply_perturbation(
+                sub['type'], sub.get('params', {}),
+                hooks, pending_hooks, grad_hooks, config, exp_config.seed)
     else:
-        raise ValueError(f"Unknown perturbation type: {pt}")
+        _apply_perturbation(pt, pp, hooks, pending_hooks, grad_hooks, config,
+                            exp_config.seed)
 
     # --- Apply schedule wrapping and register pending hooks ---
     sched = exp_config.schedule
@@ -287,6 +305,8 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
                     detail_level=exp_config.detail_level),
         grad_hooks=grad_hooks if grad_hooks else None,
         seed=exp_config.seed,
+        local_loss=exp_config.local_loss,
+        val_docs=val_docs,
     )
     elapsed = time.time() - t0
 
@@ -317,9 +337,10 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
 # Run a sweep of experiments
 # ============================================================================
 
-def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None):
+def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None,
+              val_docs=None):
     if docs is None:
-        docs, uchars, BOS, vocab_size = load_dataset()
+        docs, val_docs, uchars, BOS, vocab_size = load_dataset()
 
     results = []
     total = sum(c.num_reps for c in configs)
@@ -348,12 +369,14 @@ def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None):
                 save_trajectory=cfg.save_trajectory,
                 save_samples=cfg.save_samples,
                 print_progress=False,
+                local_loss=cfg.local_loss,
             )
 
             print(f"\n[{run_idx}/{total}] {cfg.name} (rep {rep+1}/{cfg.num_reps}, "
                   f"seed={rep_cfg.seed})")
 
-            result = run_experiment(rep_cfg, docs, uchars, BOS, vocab_size)
+            result = run_experiment(rep_cfg, docs, uchars, BOS, vocab_size,
+                                    val_docs=val_docs)
             results.append(result)
 
             print(f"  loss={result['summary']['final_loss']:.4f} "
@@ -393,6 +416,12 @@ def save_results(results, filepath):
                 f"{k[0]},{k[1]}": [(s, e) for s, e in v]
                 for k, v in r['probe'].attention_entropies.items()
             }
+        # Validation losses
+        if r['probe'].val_losses:
+            entry['val_trajectory'] = [(s, l) for s, l in r['probe'].val_losses]
+            entry['summary']['val_final_loss'] = r['probe'].val_losses[-1][1]
+            entry['summary']['val_mean_loss'] = sum(
+                l for _, l in r['probe'].val_losses) / len(r['probe'].val_losses)
         # Phases and DG
         loss_vals = r['probe'].get_loss_values()
         entry['phases'] = detect_phases(loss_vals)
@@ -436,8 +465,8 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4, result_suffix
             num_reps=num_reps, seed=42, print_progress=False,
         ))
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
     # Save results
     save_results(all_results, os.path.join(os.path.dirname(__file__),
@@ -560,7 +589,7 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4, result_suffix
 
 def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
-    print("EXPERIMENT 2: Cell-View GPT (Stop-Gradient)")
+    print("EXPERIMENT 2: Cell-View GPT (Local Loss)")
     print("=" * 60)
 
     configs = [
@@ -570,14 +599,14 @@ def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4, result_suffix='')
         ),
         ExperimentConfig(
             name='cell_view', n_layer=n_layer, num_steps=num_steps,
-            perturbation_type='stop_gradient',
-            perturbation_params={'layers': 'all'},
+            perturbation_type='none',
+            local_loss=True,
             num_reps=num_reps, seed=42,
         ),
     ]
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
     save_results(results, os.path.join(os.path.dirname(__file__),
                  'results', f'experiment2_cell_view{result_suffix}.json'))
@@ -636,8 +665,8 @@ def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4, result
         ),
     ]
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
     save_results(results, os.path.join(os.path.dirname(__file__),
                  'results', f'experiment3_gradient_degradation{result_suffix}.json'))
@@ -682,8 +711,8 @@ def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4, result_suffix
             num_reps=num_reps, seed=42,
         ))
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
     save_results(all_results, os.path.join(os.path.dirname(__file__),
                  'results', f'experiment4_vision_radius{result_suffix}.json'))
@@ -751,10 +780,11 @@ def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4, resu
                 perturbation_type='none', num_reps=num_reps, seed=42,
             ))
         elif fraction <= 0.0:
+            # cell_view uses local loss (true cell-view mode)
             configs.append(ExperimentConfig(
                 name=name, n_layer=n_layer, num_steps=num_steps,
-                perturbation_type='stop_gradient',
-                perturbation_params={'layers': 'all'},
+                perturbation_type='none',
+                local_loss=True,
                 num_reps=num_reps, seed=42,
             ))
         else:
@@ -765,8 +795,8 @@ def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4, resu
                 num_reps=num_reps, seed=42,
             ))
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
     save_results(all_results, os.path.join(os.path.dirname(__file__),
                  'results', f'experiment5_communication{result_suffix}.json'))
@@ -805,33 +835,50 @@ def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4, result_suff
             name='baseline', n_layer=n_layer, num_steps=num_steps,
             perturbation_type='none', num_reps=num_reps, seed=42,
         ),
+        # Cautious forward (tiny noise) + Cautious gradient (sign-only)
         ExperimentConfig(
             name='cautious_cautious', n_layer=n_layer, num_steps=num_steps,
-            perturbation_type='noisy_gradients',
-            perturbation_params={'noise_std': 0.001},
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'noise_injection', 'params': {'hook_name': 'emb', 'noise_std': 0.001}},
+                {'type': 'sign_only_gradients'},
+            ]},
             num_reps=num_reps, seed=42,
         ),
+        # Cautious forward (tiny noise) + Courageous gradient (noisy sigma=0.1)
         ExperimentConfig(
             name='cautious_courageous', n_layer=n_layer, num_steps=num_steps,
-            perturbation_type='sign_only_gradients',
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'noise_injection', 'params': {'hook_name': 'emb', 'noise_std': 0.001}},
+                {'type': 'noisy_gradients', 'params': {'noise_std': 0.1}},
+            ]},
             num_reps=num_reps, seed=42,
         ),
+        # Courageous forward (dropout) + Cautious gradient (sign-only)
         ExperimentConfig(
             name='courageous_cautious', n_layer=n_layer, num_steps=num_steps,
-            perturbation_type='dropout',
-            perturbation_params={'drop_prob': 0.1},
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'dropout', 'params': {'drop_prob': 0.1}},
+                {'type': 'sign_only_gradients'},
+            ]},
             num_reps=num_reps, seed=42,
         ),
+        # Courageous forward (dropout) + Courageous gradient (noisy sigma=0.1)
         ExperimentConfig(
             name='courageous_courageous', n_layer=n_layer, num_steps=num_steps,
-            perturbation_type='noisy_gradients',
-            perturbation_params={'noise_std': 0.1},
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'dropout', 'params': {'drop_prob': 0.1}},
+                {'type': 'noisy_gradients', 'params': {'noise_std': 0.1}},
+            ]},
             num_reps=num_reps, seed=42,
         ),
     ]
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
     save_results(all_results, os.path.join(os.path.dirname(__file__),
                  'results', f'experiment6_courage_caution{result_suffix}.json'))
@@ -884,7 +931,7 @@ def experiment_recovery(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("EXPERIMENT 7: Recovery After Damage")
     print("=" * 60)
 
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
                          block_size=16, vocab_size=vocab_size)
 
@@ -912,22 +959,20 @@ def experiment_recovery(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
 
         pre_damage_loss = p1.losses[-1][1] if p1.losses else 0
 
-        # Phase 2: Damage (freeze 8 heads)
-        hooks = Hooks()
+        # Phase 2: Damage (freeze 8 heads via gradient zeroing)
         rng = random.Random(seed + 1000)
         all_heads = [(li, h) for li in range(n_layer) for h in range(4)]
         rng.shuffle(all_heads)
-        freeze_specific_heads(hooks, all_heads[:num_freeze], config)
+        _, freeze_gh = freeze_specific_heads(all_heads[:num_freeze], config)
 
         tc2 = TrainConfig(num_steps=phase2_steps, learning_rate=0.01,
                           print_every=0, detail_level='loss_only')
         p2, m, v = train_with_state(
             sd, params, config, tc2, docs, uchars, BOS,
-            hooks=hooks, seed=seed, m_buf=m, v_buf=v,
+            grad_hooks=freeze_gh, seed=seed, m_buf=m, v_buf=v,
             start_step=phase1_steps, total_steps=total)
 
-        # Phase 3: Recovery (unfreeze)
-        hooks.clear()
+        # Phase 3: Recovery (no freeze grad hooks)
         tc3 = TrainConfig(num_steps=phase3_steps, learning_rate=0.01,
                           print_every=0, detail_level='loss_only')
         p3, m, v = train_with_state(
@@ -1014,7 +1059,7 @@ def experiment_chimera(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("EXPERIMENT 8: Chimera Assembly")
     print("=" * 60)
 
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
                          block_size=16, vocab_size=vocab_size)
 
@@ -1141,7 +1186,7 @@ def experiment_gradual_vs_sudden(num_reps=5, num_steps=200, n_layer=4, result_su
     print("EXPERIMENT 9: Gradual vs Sudden Damage")
     print("=" * 60)
 
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
                          block_size=16, vocab_size=vocab_size)
 
@@ -1242,7 +1287,7 @@ def experiment_regeneration(num_reps=5, num_steps=200, n_layer=4, result_suffix=
     print("EXPERIMENT 10: Regeneration (Layer Reset)")
     print("=" * 60)
 
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
                          block_size=16, vocab_size=vocab_size)
 
@@ -1368,7 +1413,7 @@ def experiment_transplantation(num_reps=5, num_steps=200, n_layer=4, result_suff
     print("EXPERIMENT 11: Transplantation")
     print("=" * 60)
 
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
                          block_size=16, vocab_size=vocab_size)
 
@@ -1502,7 +1547,7 @@ def experiment_competing_objectives(num_reps=5, num_steps=200, n_layer=4, result
     print("EXPERIMENT 12: Competing Objectives")
     print("=" * 60)
 
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
                          block_size=16, vocab_size=vocab_size)
 

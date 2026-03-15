@@ -50,7 +50,7 @@ def test():
     import numpy as np
 
     print("=== SMOKE TEST (numpy backend) ===")
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     print(f"docs: {len(docs)}, vocab: {vocab_size}")
 
     config = make_config(n_layer=1, n_embd=16, n_head=4, vocab_size=vocab_size)
@@ -78,17 +78,16 @@ def test():
     hooks.register('emb', lambda v, step=0: None)
     print(f"  registered: {hooks.list_hooks()}")
 
-    # Test with a freeze hook
+    # Test with a freeze hook (true parameter freezing via grad hooks)
     from perturbations_np import make_zero_head, freeze_random_heads
-    hooks2 = Hooks()
-    frozen = freeze_random_heads(hooks2, config, num_heads=2)
+    frozen, freeze_gh = freeze_random_heads(config, num_heads=2)
     print(f"  frozen heads: {frozen}")
-    print(f"  active hooks: {hooks2.list_hooks()}")
 
     # Train with frozen heads
     state_dict2, params2 = init_state_dict(config, seed=42)
     tc2 = TrainConfig(num_steps=20, print_every=10, detail_level='summary')
-    probe2 = train(state_dict2, params2, config, tc2, docs, uchars, BOS, hooks=hooks2)
+    probe2 = train(state_dict2, params2, config, tc2, docs, uchars, BOS,
+                   grad_hooks=freeze_gh)
     print(f"  loss with {len(frozen)} frozen heads: {probe2.losses[-1][1]:.4f}")
     print(f"  head norm entries: {len(probe2.head_outputs)}")
 
@@ -121,7 +120,7 @@ def baseline():
     )
 
     print("=== BASELINE TRAJECTORY REPORT (n_layer=4, 500 steps) ===")
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=4, n_embd=16, n_head=4, vocab_size=vocab_size)
     state_dict, params = init_state_dict(config, seed=42)
     print(f"params: {len(params)}")
@@ -271,7 +270,7 @@ def trajectory():
     import random
 
     print("=== TRAJECTORY COMPARISON: Baseline vs 4 Frozen Heads ===")
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
     config = make_config(n_layer=4, n_embd=16, n_head=4, vocab_size=vocab_size)
 
     num_reps = 3
@@ -299,13 +298,12 @@ def trajectory():
     frozen_heads_all = []
     for rep in range(num_reps):
         sd, params = init_state_dict(config, seed=42 + rep)
-        hooks = Hooks()
         rng = random.Random(1042 + rep)
-        frozen = freeze_random_heads(hooks, config, num_heads=num_frozen, rng=rng)
+        frozen, freeze_gh = freeze_random_heads(config, num_heads=num_frozen, rng=rng)
         frozen_heads_all.append(frozen)
         tc = TrainConfig(num_steps=num_steps, print_every=0, detail_level='summary')
         probe = train(sd, params, config, tc, docs, uchars, BOS,
-                      hooks=hooks,
+                      grad_hooks=freeze_gh,
                       probe=Probe(record_interval=5, detail_level='summary'),
                       seed=42 + rep)
         damaged_trajectories.append(probe.get_loss_values())

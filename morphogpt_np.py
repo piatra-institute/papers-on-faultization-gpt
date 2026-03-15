@@ -64,6 +64,7 @@ class Probe:
         self.record_interval = record_interval
         self.detail_level = detail_level
         self.losses = []
+        self.val_losses = []
         self.grad_norms = {}
         self.head_outputs = {}
         self.attention_entropies = {}
@@ -196,10 +197,14 @@ def _shannon_entropy(weights):
 # GPT forward pass — fully vectorized across positions
 # ============================================================================
 
-def _forward_backward(tokens, n, state_dict, config, hooks, capture_state=False):
+def _forward_backward(tokens, n, state_dict, config, hooks, capture_state=False,
+                      local_loss=False):
     """
     Full forward + backward pass for one document.
     Vectorized across all n positions simultaneously.
+
+    If local_loss=True, each layer receives its own local loss signal
+    (projected through lm_head) instead of end-to-end backpropagation.
 
     Returns:
         (loss_scalar, per_position_losses, grads_dict, snapshots_or_None)
@@ -412,90 +417,76 @@ def _forward_backward(tokens, n, state_dict, config, hooks, capture_state=False)
 
     # ---- BACKWARD PASS (all positions at once) ----
 
-    # dlogits: (n, vocab)
-    dlogits = probs.copy()
-    for i in range(n):
-        dlogits[i, target_ids[i]] -= 1.0
-    dlogits /= n
+    if local_loss:
+        # Local-loss mode: each layer receives its own local loss signal
+        total_loss = 0.0
+        last_local_per_pos = per_position_losses  # fallback
 
-    # lm_head
-    grads['lm_head'] += dlogits.T @ X  # (vocab, d)
-    dX = dlogits @ sd['lm_head']       # (n, d)
+        for li in range(n_layer):
+            lf = fwd_layers[li]
+            X_after = lf['X_after_mlp']  # (n, n_embd)
 
-    # Backward through layers
-    for li in range(n_layer - 1, -1, -1):
-        lf = fwd_layers[li]
+            # Local logits and loss
+            local_logits = X_after @ sd['lm_head'].T  # (n, vocab)
+            local_probs = _softmax(local_logits)
+            local_per_pos = [-math.log(local_probs[i, target_ids[i]] + 1e-10)
+                             for i in range(n)]
+            local_loss_val = sum(local_per_pos) / n
+            total_loss += local_loss_val
+            last_local_per_pos = local_per_pos
 
-        # --- MLP backward ---
-        dX_res_mlp = dX.copy()
+            # Backward from local loss
+            local_dlogits = local_probs.copy()
+            for i in range(n):
+                local_dlogits[i, target_ids[i]] -= 1.0
+            local_dlogits /= n
 
-        # FC2: fc2 = relu_hooked @ Wfc2.T
-        grads[f'layer{li}.mlp_fc2'] += dX.T @ lf['relu_hooked']  # (d, 4d)
-        drelu = dX @ sd[f'layer{li}.mlp_fc2']                     # (n, 4d)
+            # lm_head gradients (accumulated from all layers)
+            grads['lm_head'] += local_dlogits.T @ X_after
 
-        # ReLU backward
-        dfc1 = drelu * lf['relu_mask']  # (n, 4d)
+            # dX w.r.t. layer output
+            dX = local_dlogits @ sd['lm_head']
 
-        # FC1: fc1 = X_normed_mlp @ Wfc1.T
-        grads[f'layer{li}.mlp_fc1'] += dfc1.T @ lf['X_normed_mlp']  # (4d, d)
-        dX_normed_mlp = dfc1 @ sd[f'layer{li}.mlp_fc1']              # (n, d)
+            # Backward through layer li
+            dX = _backward_through_layer(
+                dX, li, lf, sd, grads, n, n_head, head_dim, n_embd, causal)
 
-        # RMSNorm backward (before MLP)
-        dX = _rmsnorm_backward_batch(dX_normed_mlp, lf['X_pre_mlp']) + dX_res_mlp
+            # For layer 0, continue backward to embeddings
+            if li == 0:
+                dX = _rmsnorm_backward_batch(dX, X_pre)
+                for i in range(n):
+                    grads['wte'][token_ids[i]] += dX[i]
+                    grads['wpe'][i] += dX[i]
 
-        # --- Attention backward ---
-        dX_res_attn = dX.copy()
+        loss = total_loss / n_layer
+        per_position_losses = last_local_per_pos
 
-        # Output projection: X_proj = X_attn @ Wo.T
-        grads[f'layer{li}.attn_wo'] += dX.T @ lf['X_attn']  # (d, d)
-        dX_attn = dX @ sd[f'layer{li}.attn_wo']               # (n, d)
+    else:
+        # Standard end-to-end backward pass
 
-        # Reshape to multi-head: (nh, n, hd)
-        dX_attn_h = dX_attn.reshape(n, n_head, head_dim).transpose(1, 0, 2)
+        # dlogits: (n, vocab)
+        dlogits = probs.copy()
+        for i in range(n):
+            dlogits[i, target_ids[i]] -= 1.0
+        dlogits /= n
 
-        attn_w = lf['attn_w']   # (nh, n, n)
-        V_t = lf['V'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
-        Q_t = lf['Q'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
-        K_t = lf['K'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
+        # lm_head
+        grads['lm_head'] += dlogits.T @ X  # (vocab, d)
+        dX = dlogits @ sd['lm_head']       # (n, d)
 
-        # dattn_w: (nh, n, n) = (nh, n, hd) @ (nh, hd, n)
-        dattn_w = np.einsum('hid,hjd->hij', dX_attn_h, V_t)
-        dV_t = np.einsum('hij,hid->hjd', attn_w, dX_attn_h)  # (nh, n, hd)
+        # Backward through layers
+        for li in range(n_layer - 1, -1, -1):
+            lf = fwd_layers[li]
+            dX = _backward_through_layer(
+                dX, li, lf, sd, grads, n, n_head, head_dim, n_embd, causal)
 
-        # Softmax backward: dscores = attn_w * (dattn_w - sum(attn_w * dattn_w))
-        s = np.sum(attn_w * dattn_w, axis=-1, keepdims=True)  # (nh, n, 1)
-        dscores = attn_w * (dattn_w - s)
-        dscores[:, ~causal] = 0  # mask
+        # Pre-norm backward
+        dX = _rmsnorm_backward_batch(dX, X_pre)
 
-        scale_attn = 1.0 / np.sqrt(head_dim)
-        dQ_t = np.einsum('hij,hjd->hid', dscores, K_t) * scale_attn
-        dK_t = np.einsum('hji,hjd->hid', dscores, Q_t) * scale_attn
-
-        # Reshape back to (n, d)
-        dQ = dQ_t.transpose(1, 0, 2).reshape(n, n_embd)
-        dK = dK_t.transpose(1, 0, 2).reshape(n, n_embd)
-        dV = dV_t.transpose(1, 0, 2).reshape(n, n_embd)
-
-        # QKV projection backward
-        X_na = lf['X_normed_attn']
-        grads[f'layer{li}.attn_wq'] += dQ.T @ X_na
-        grads[f'layer{li}.attn_wk'] += dK.T @ X_na
-        grads[f'layer{li}.attn_wv'] += dV.T @ X_na
-
-        dX_normed_attn = (dQ @ sd[f'layer{li}.attn_wq'] +
-                          dK @ sd[f'layer{li}.attn_wk'] +
-                          dV @ sd[f'layer{li}.attn_wv'])
-
-        # RMSNorm backward (before attention)
-        dX = _rmsnorm_backward_batch(dX_normed_attn, lf['X_pre_attn']) + dX_res_attn
-
-    # Pre-norm backward
-    dX = _rmsnorm_backward_batch(dX, X_pre)
-
-    # Embedding gradients
-    for i in range(n):
-        grads['wte'][token_ids[i]] += dX[i]
-        grads['wpe'][i] += dX[i]
+        # Embedding gradients
+        for i in range(n):
+            grads['wte'][token_ids[i]] += dX[i]
+            grads['wpe'][i] += dX[i]
 
     return loss, per_position_losses, grads, snapshots
 
@@ -510,6 +501,62 @@ def _rmsnorm_backward_batch(dout, x_in):
     scale = 1.0 / np.sqrt(ms + 1e-5)
     xdot = np.sum(x_in * dout, axis=-1, keepdims=True)  # (n, 1)
     return scale * dout - (scale ** 3) * x_in * xdot / d
+
+
+def _backward_through_layer(dX, li, lf, sd, grads, n, n_head, head_dim, n_embd, causal):
+    """Backward pass through a single transformer layer.
+    Accumulates gradients for layer li's parameters into grads.
+    Returns dX w.r.t. the input of this layer."""
+
+    # --- MLP backward ---
+    dX_res_mlp = dX.copy()
+
+    grads[f'layer{li}.mlp_fc2'] += dX.T @ lf['relu_hooked']
+    drelu = dX @ sd[f'layer{li}.mlp_fc2']
+    dfc1 = drelu * lf['relu_mask']
+    grads[f'layer{li}.mlp_fc1'] += dfc1.T @ lf['X_normed_mlp']
+    dX_normed_mlp = dfc1 @ sd[f'layer{li}.mlp_fc1']
+    dX = _rmsnorm_backward_batch(dX_normed_mlp, lf['X_pre_mlp']) + dX_res_mlp
+
+    # --- Attention backward ---
+    dX_res_attn = dX.copy()
+
+    grads[f'layer{li}.attn_wo'] += dX.T @ lf['X_attn']
+    dX_attn = dX @ sd[f'layer{li}.attn_wo']
+
+    dX_attn_h = dX_attn.reshape(n, n_head, head_dim).transpose(1, 0, 2)
+
+    attn_w = lf['attn_w']
+    V_t = lf['V'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
+    Q_t = lf['Q'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
+    K_t = lf['K'].reshape(n, n_head, head_dim).transpose(1, 0, 2)
+
+    dattn_w = np.einsum('hid,hjd->hij', dX_attn_h, V_t)
+    dV_t = np.einsum('hij,hid->hjd', attn_w, dX_attn_h)
+
+    s = np.sum(attn_w * dattn_w, axis=-1, keepdims=True)
+    dscores = attn_w * (dattn_w - s)
+    dscores[:, ~causal] = 0
+
+    scale_attn = 1.0 / np.sqrt(head_dim)
+    dQ_t = np.einsum('hij,hjd->hid', dscores, K_t) * scale_attn
+    dK_t = np.einsum('hji,hjd->hid', dscores, Q_t) * scale_attn
+
+    dQ = dQ_t.transpose(1, 0, 2).reshape(n, n_embd)
+    dK = dK_t.transpose(1, 0, 2).reshape(n, n_embd)
+    dV = dV_t.transpose(1, 0, 2).reshape(n, n_embd)
+
+    X_na = lf['X_normed_attn']
+    grads[f'layer{li}.attn_wq'] += dQ.T @ X_na
+    grads[f'layer{li}.attn_wk'] += dK.T @ X_na
+    grads[f'layer{li}.attn_wv'] += dV.T @ X_na
+
+    dX_normed_attn = (dQ @ sd[f'layer{li}.attn_wq'] +
+                      dK @ sd[f'layer{li}.attn_wk'] +
+                      dV @ sd[f'layer{li}.attn_wv'])
+
+    dX = _rmsnorm_backward_batch(dX_normed_attn, lf['X_pre_attn']) + dX_res_attn
+    return dX
 
 
 # ============================================================================
@@ -647,7 +694,7 @@ def init_state_dict(config, seed=42):
 # Dataset / Tokenizer — same as morphogpt.py
 # ============================================================================
 
-def load_dataset(path=None):
+def load_dataset(path=None, val_fraction=0.1, val_seed=12345):
     if path is None:
         path = os.path.join(os.path.dirname(__file__), 'data', 'input.txt')
     if not os.path.exists(path):
@@ -660,7 +707,16 @@ def load_dataset(path=None):
     uchars = sorted(set(''.join(docs)))
     BOS = len(uchars)
     vocab_size = len(uchars) + 1
-    return docs, uchars, BOS, vocab_size
+
+    # Deterministic train/val split
+    rng = random.Random(val_seed)
+    indices = list(range(len(docs)))
+    rng.shuffle(indices)
+    split = int(len(docs) * (1 - val_fraction))
+    train_docs = [docs[i] for i in indices[:split]]
+    val_docs = [docs[i] for i in indices[split:]]
+
+    return train_docs, val_docs, uchars, BOS, vocab_size
 
 
 def tokenize(doc, uchars, BOS):
@@ -670,6 +726,28 @@ def tokenize(doc, uchars, BOS):
 # ============================================================================
 # Training loop
 # ============================================================================
+
+def _evaluate(docs, state_dict, config, uchars, BOS, n_eval=50, seed=99999):
+    """Forward-only pass on sampled docs. Returns mean loss."""
+    rng = random.Random(seed)
+    block_size = config['block_size']
+    hooks = Hooks()
+    total_loss = 0.0
+    count = 0
+    sample_indices = list(range(len(docs)))
+    rng.shuffle(sample_indices)
+    for idx in sample_indices[:n_eval]:
+        doc = docs[idx]
+        tokens = tokenize(doc, uchars, BOS)
+        n = min(block_size, len(tokens) - 1)
+        if n < 1:
+            continue
+        loss, _, _, _ = _forward_backward(
+            tokens, n, state_dict, config, hooks, capture_state=False)
+        total_loss += loss
+        count += 1
+    return total_loss / max(count, 1)
+
 
 @dataclass
 class TrainConfig:
@@ -686,7 +764,8 @@ class TrainConfig:
 
 
 def train(state_dict, params, config, train_config, docs, uchars, BOS,
-          hooks=None, probe=None, grad_hooks=None, seed=42):
+          hooks=None, probe=None, grad_hooks=None, seed=42,
+          local_loss=False, val_docs=None):
     """
     Train the model using numpy backend.
 
@@ -702,6 +781,8 @@ def train(state_dict, params, config, train_config, docs, uchars, BOS,
         probe: Probe object
         grad_hooks: list of callables (grads_dict, state_dict, step)
         seed: random seed
+        local_loss: if True, each layer gets its own local loss signal
+        val_docs: optional validation docs for periodic evaluation
     """
     tc = train_config
 
@@ -735,7 +816,8 @@ def train(state_dict, params, config, train_config, docs, uchars, BOS,
 
         # Forward + backward
         loss, per_position_losses, grads, snapshots = _forward_backward(
-            tokens, n, state_dict, config, hooks, capture_state=capture_this_step
+            tokens, n, state_dict, config, hooks, capture_state=capture_this_step,
+            local_loss=local_loss
         )
 
         # Record
@@ -772,12 +854,23 @@ def train(state_dict, params, config, train_config, docs, uchars, BOS,
                                temperature=tc.temperature)
             probe.record_samples(step, samples)
 
+        # Periodic validation evaluation
+        if val_docs is not None and step % 20 == 0:
+            val_loss = _evaluate(val_docs, state_dict, config, uchars, BOS)
+            probe.val_losses.append((step, val_loss))
+
+    # Final validation evaluation
+    if val_docs is not None:
+        val_loss = _evaluate(val_docs, state_dict, config, uchars, BOS)
+        probe.val_losses.append((tc.num_steps - 1, val_loss))
+
     return probe
 
 
 def train_with_state(state_dict, params, config, train_config, docs, uchars, BOS,
                      hooks=None, probe=None, grad_hooks=None, seed=42,
-                     m_buf=None, v_buf=None, start_step=0, total_steps=None):
+                     m_buf=None, v_buf=None, start_step=0, total_steps=None,
+                     local_loss=False, val_docs=None):
     """
     Like train() but supports multi-phase training.
     Accepts/returns Adam optimizer state (m_buf, v_buf).
@@ -822,7 +915,8 @@ def train_with_state(state_dict, params, config, train_config, docs, uchars, BOS
         )
 
         loss, per_position_losses, grads, snapshots = _forward_backward(
-            tokens, n, state_dict, config, hooks, capture_state=capture_this_step
+            tokens, n, state_dict, config, hooks, capture_state=capture_this_step,
+            local_loss=local_loss
         )
 
         if capture_this_step:
@@ -854,6 +948,11 @@ def train_with_state(state_dict, params, config, train_config, docs, uchars, BOS
                                num_samples=tc.num_samples,
                                temperature=tc.temperature)
             probe.record_samples(global_step, samples)
+
+        # Periodic validation evaluation
+        if val_docs is not None and global_step % 20 == 0:
+            val_loss = _evaluate(val_docs, state_dict, config, uchars, BOS)
+            probe.val_losses.append((global_step, val_loss))
 
     return probe, m_buf, v_buf
 
@@ -983,8 +1082,8 @@ def generate(state_dict, config, uchars, BOS, num_samples=10,
 if __name__ == '__main__':
     print("=== MorphoGPT (NumPy backend) ===")
     print("Loading dataset...")
-    docs, uchars, BOS, vocab_size = load_dataset()
-    print(f"  docs: {len(docs)}, vocab: {vocab_size}")
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    print(f"  docs: {len(docs)} train + {len(val_docs)} val, vocab: {vocab_size}")
 
     config = make_config(n_layer=4, n_embd=16, n_head=4, vocab_size=vocab_size)
     print(f"  config: n_layer={config['n_layer']}, n_embd={config['n_embd']}, "
