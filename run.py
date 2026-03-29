@@ -4,7 +4,7 @@
 """
 MorphoGPT — Quick Run Script
 
-Uses the numpy backend (morphogpt_np) for ~1000x speedup over scalar autograd.
+Uses the numpy backend (model) for ~1000x speedup over scalar autograd.
 
 Usage:
     uv run run.py test           # Quick smoke test (20 steps, n_layer=1)
@@ -42,7 +42,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 def test():
     """Quick smoke test: 20 steps, n_layer=1."""
-    from morphogpt_np import (
+    from model import (
         make_config, init_state_dict, load_dataset, train, generate,
         TrainConfig, Hooks, Probe
     )
@@ -79,7 +79,7 @@ def test():
     print(f"  registered: {hooks.list_hooks()}")
 
     # Test with a freeze hook (true parameter freezing via grad hooks)
-    from perturbations_np import make_zero_head, freeze_random_heads
+    from perturbations import make_zero_head, freeze_random_heads
     frozen, freeze_gh = freeze_random_heads(config, num_heads=2)
     print(f"  frozen heads: {frozen}")
 
@@ -104,7 +104,7 @@ def test():
 
 def baseline():
     """Train baseline model — trajectory-focused report."""
-    from morphogpt_np import (
+    from model import (
         make_config, init_state_dict, load_dataset, train, generate,
         TrainConfig, Probe
     )
@@ -257,11 +257,11 @@ def trajectory():
     Run baseline vs damaged variant, compare trajectory shapes,
     report divergence points and rerouting.
     """
-    from morphogpt_np import (
+    from model import (
         make_config, init_state_dict, load_dataset, train,
         TrainConfig, Hooks, Probe
     )
-    from perturbations_np import freeze_random_heads
+    from perturbations import freeze_random_heads
     from metrics import (
         trajectory_envelope, compare_trajectory_envelopes,
         detect_phases, compute_delayed_gratification,
@@ -370,7 +370,7 @@ def trajectory():
 
 def experiment1(num_reps=3, num_steps=200, result_suffix=''):
     """Head freezing robustness curve."""
-    from experiments_np import experiment_head_freezing, save_results
+    from experiments import experiment_head_freezing, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_head_freezing(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
     save_results(results['all_results'], f'results/head_freezing{result_suffix}.json')
@@ -378,7 +378,7 @@ def experiment1(num_reps=3, num_steps=200, result_suffix=''):
 
 def experiment2(num_reps=3, num_steps=200, result_suffix=''):
     """Cell-view GPT."""
-    from experiments_np import experiment_cell_view, save_results
+    from experiments import experiment_cell_view, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_cell_view(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
     save_results(results, f'results/cell_view{result_suffix}.json')
@@ -386,7 +386,7 @@ def experiment2(num_reps=3, num_steps=200, result_suffix=''):
 
 def experiment3(num_reps=3, num_steps=200, result_suffix=''):
     """Gradient degradation."""
-    from experiments_np import experiment_gradient_degradation, save_results
+    from experiments import experiment_gradient_degradation, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_gradient_degradation(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
     save_results(results, f'results/gradient_degradation{result_suffix}.json')
@@ -394,7 +394,7 @@ def experiment3(num_reps=3, num_steps=200, result_suffix=''):
 
 def experiment4(num_reps=3, num_steps=200, result_suffix=''):
     """Vision radius sweep."""
-    from experiments_np import experiment_vision_radius, save_results
+    from experiments import experiment_vision_radius, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_vision_radius(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
     save_results(results['all_results'], f'results/vision_radius{result_suffix}.json')
@@ -402,7 +402,7 @@ def experiment4(num_reps=3, num_steps=200, result_suffix=''):
 
 def experiment5(num_reps=3, num_steps=200, result_suffix=''):
     """Communication topology."""
-    from experiments_np import experiment_communication_topology, save_results
+    from experiments import experiment_communication_topology, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_communication_topology(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
     save_results(results, f'results/communication_topology{result_suffix}.json')
@@ -410,7 +410,7 @@ def experiment5(num_reps=3, num_steps=200, result_suffix=''):
 
 def experiment6(num_reps=3, num_steps=200, result_suffix=''):
     """Courage vs. caution."""
-    from experiments_np import experiment_courage_caution, save_results
+    from experiments import experiment_courage_caution, save_results
     os.makedirs('results', exist_ok=True)
     results = experiment_courage_caution(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
     save_results(results, f'results/courage_caution{result_suffix}.json')
@@ -418,37 +418,37 @@ def experiment6(num_reps=3, num_steps=200, result_suffix=''):
 
 def experiment7(num_reps=3, num_steps=200, result_suffix=''):
     """Recovery after damage."""
-    from experiments_np import experiment_recovery
+    from experiments import experiment_recovery
     experiment_recovery(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
 def experiment8(num_reps=3, num_steps=200, result_suffix=''):
     """Chimera assembly."""
-    from experiments_np import experiment_chimera
+    from experiments import experiment_chimera
     experiment_chimera(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
 def experiment9(num_reps=3, num_steps=200, result_suffix=''):
     """Gradual vs sudden damage."""
-    from experiments_np import experiment_gradual_vs_sudden
+    from experiments import experiment_gradual_vs_sudden
     experiment_gradual_vs_sudden(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
 def experiment10(num_reps=3, num_steps=200, result_suffix=''):
     """Regeneration (layer reset)."""
-    from experiments_np import experiment_regeneration
+    from experiments import experiment_regeneration
     experiment_regeneration(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
 def experiment11(num_reps=3, num_steps=200, result_suffix=''):
     """Transplantation."""
-    from experiments_np import experiment_transplantation
+    from experiments import experiment_transplantation
     experiment_transplantation(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
 def experiment12(num_reps=3, num_steps=200, result_suffix=''):
     """Competing objectives."""
-    from experiments_np import experiment_competing_objectives
+    from experiments import experiment_competing_objectives
     experiment_competing_objectives(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
@@ -1602,26 +1602,39 @@ def run_n300(num_reps=300, num_steps=200, result_suffix='_n300'):
     run_all2(num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
 
 
-def _parse_args():
-    """Parse --num-reps, --num-steps, and --result-suffix from CLI args."""
-    num_reps = 3
-    num_steps = 200
-    result_suffix = ''
-    for i, arg in enumerate(sys.argv):
-        if arg == '--num-reps' and i + 1 < len(sys.argv):
-            num_reps = int(sys.argv[i + 1])
-        elif arg == '--num-steps' and i + 1 < len(sys.argv):
-            num_steps = int(sys.argv[i + 1])
-        elif arg == '--result-suffix' and i + 1 < len(sys.argv):
-            result_suffix = sys.argv[i + 1]
-    return num_reps, num_steps, result_suffix
+def main():
+    import argparse
 
+    parser = argparse.ArgumentParser(
+        description='MorphoGPT: Morphogenetic perturbation experiments on a minimal transformer.'
+    )
+    sub = parser.add_subparsers(dest='command', help='Command to run')
 
-if __name__ == '__main__':
-    cmd = sys.argv[1] if len(sys.argv) > 1 else 'test'
+    # Commands that take experiment arguments (--num-reps, --num-steps, --result-suffix)
+    exp_commands = [
+        'experiment1', 'experiment2', 'experiment3', 'experiment4',
+        'experiment5', 'experiment6', 'experiment7', 'experiment8',
+        'experiment9', 'experiment10', 'experiment11', 'experiment12',
+        'all', 'all2', 'n300',
+    ]
+    for cmd in exp_commands:
+        p = sub.add_parser(cmd)
+        p.add_argument('--num-reps', type=int, default=30)
+        p.add_argument('--num-steps', type=int, default=200)
+        p.add_argument('--result-suffix', type=str, default='')
 
-    # Commands that accept --num-reps / --num-steps / --result-suffix
-    experiment_commands = {
+    # Commands without experiment arguments
+    for cmd in ['test', 'baseline', 'trajectory',
+                'analyze1', 'analyze2', 'analyze3', 'analyze4', 'analyze5', 'analyze6']:
+        sub.add_parser(cmd)
+
+    args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        return
+
+    # Dispatch tables
+    experiment_dispatch = {
         'experiment1': experiment1,
         'experiment2': experiment2,
         'experiment3': experiment3,
@@ -1639,8 +1652,7 @@ if __name__ == '__main__':
         'n300': run_n300,
     }
 
-    # Commands that don't
-    other_commands = {
+    other_dispatch = {
         'test': test,
         'baseline': baseline,
         'trajectory': trajectory,
@@ -1652,21 +1664,20 @@ if __name__ == '__main__':
         'analyze6': analyze6,
     }
 
-    if cmd in experiment_commands:
-        num_reps, num_steps, result_suffix = _parse_args()
-        # n300 has its own defaults; other commands use parsed args
-        if cmd == 'n300':
+    if args.command in experiment_dispatch:
+        num_reps = args.num_reps
+        num_steps = args.num_steps
+        result_suffix = args.result_suffix
+        if args.command == 'n300':
             print(f"Running all 12 experiments at n=300")
-            experiment_commands[cmd]()
+            experiment_dispatch[args.command]()
         else:
             suffix_msg = f", result_suffix='{result_suffix}'" if result_suffix else ''
-            print(f"Running {cmd} with num_reps={num_reps}, num_steps={num_steps}{suffix_msg}")
-            experiment_commands[cmd](num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
-    elif cmd in other_commands:
-        other_commands[cmd]()
-    else:
-        all_commands = {**experiment_commands, **other_commands}
-        print(f"Unknown command: {cmd}")
-        print(f"Available: {', '.join(all_commands.keys())}")
-        print(f"\nExperiment commands accept: --num-reps N --num-steps N --result-suffix SUFFIX")
-        sys.exit(1)
+            print(f"Running {args.command} with num_reps={num_reps}, num_steps={num_steps}{suffix_msg}")
+            experiment_dispatch[args.command](num_reps=num_reps, num_steps=num_steps, result_suffix=result_suffix)
+    elif args.command in other_dispatch:
+        other_dispatch[args.command]()
+
+
+if __name__ == '__main__':
+    main()

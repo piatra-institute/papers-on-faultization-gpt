@@ -15,11 +15,11 @@ Verifies that:
 """
 
 import numpy as np
-from morphogpt_np import (
+from model import (
     Hooks, make_config, init_state_dict, load_dataset, tokenize,
     _forward_backward,
 )
-from perturbations_np import (
+from perturbations import (
     make_freeze_head_params, freeze_random_heads, freeze_specific_heads,
     make_noisy_gradients, make_partial_stop_gradient_grad_hook,
 )
@@ -33,7 +33,7 @@ def test_frozen_head_forward_nonzero():
     sd, params = init_state_dict(config, seed=42)
 
     # Train a few steps to get non-trivial weights
-    from morphogpt_np import train, TrainConfig
+    from model import train, TrainConfig
     tc = TrainConfig(num_steps=20, print_every=0, detail_level='loss_only')
     train(sd, params, config, tc, train_docs, uchars, BOS, seed=42)
 
@@ -154,7 +154,7 @@ def test_composite_perturbation():
     """Exp 6 composite conditions should apply both forward AND gradient
     perturbations simultaneously."""
     print("Test 3: Composite perturbation applies both forward and grad hooks...")
-    from experiments_np import ExperimentConfig, run_experiment
+    from experiments import ExperimentConfig, run_experiment
 
     train_docs, val_docs, uchars, BOS, vocab_size = load_dataset()
 
@@ -200,7 +200,7 @@ def test_validation_evaluation():
     print("Test 4: Validation evaluation...")
     train_docs, val_docs, uchars, BOS, vocab_size = load_dataset()
 
-    from experiments_np import ExperimentConfig, run_experiment
+    from experiments import ExperimentConfig, run_experiment
 
     cfg = ExperimentConfig(
         name='test_val',
@@ -374,7 +374,7 @@ def test_non_compounding_fractions():
 def test_schedule_grad_hook_rejection():
     """Fix 4: ValueError raised when schedule != 'chronic' with grad_hook perturbations."""
     print("Test 8 (Fix 4): Schedule + grad_hook rejection...")
-    from experiments_np import ExperimentConfig, run_experiment
+    from experiments import ExperimentConfig, run_experiment
 
     train_docs, val_docs, uchars, BOS, vocab_size = load_dataset()
 

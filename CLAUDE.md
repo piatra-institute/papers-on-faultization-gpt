@@ -30,9 +30,9 @@ uv run --script analyze_stats.py all     # Analyze all 12
 
 ## Project structure
 
-- `morphogpt_np.py` — Core GPT model (numpy backend, fast)
-- `perturbations_np.py` — All perturbation hooks (freeze, noise, stop-gradient, etc.)
-- `experiments_np.py` — 12 experiment functions with `result_suffix` parameter
+- `model.py` — Core GPT model (numpy backend, fast)
+- `perturbations.py` — All perturbation hooks (freeze, noise, stop-gradient, etc.)
+- `experiments.py` — 12 experiment functions with `result_suffix` parameter
 - `metrics.py` — Statistical metrics (DG index, robustness curves, etc.)
 - `run.py` — CLI dispatcher
 - `analyze_stats.py` — Paired t-tests and summary tables for all experiments

@@ -655,15 +655,13 @@ The $n = 300$ results confirm this framing. Some non-significant findings at $n 
 
 ### 5.6 Interpretive Lenses
 
-The empirical findings admit several interpretive framings beyond the neutral classification used in this paper. We outline three lenses that offer different perspectives on the same data. These are not claims; they are ways of reading the results.
+The empirical findings admit several interpretive framings beyond the neutral classification used in this paper. We outline two lenses that offer different perspectives on the same data. These are not claims; they are ways of reading the results.
 
 **Lens 1: Freedom from the algorithm.** One can frame the emergent behaviors as "freedom" — behaviors the optimizer didn't prescribe but the system exhibits anyway. Under this reading, SGD says "minimize loss"; it does not say "build tolerance through gradual exposure," "recover completely from damage," or "rebuild a destroyed layer to the same functional role." Stress inoculation is the strongest case: the gradient update rule is identical at every step, yet the system's final state depends on perturbation history in a way the objective function does not specify. Recovery and regeneration are weaker cases — one could argue they are also basin geometry effects rather than genuine freedom. The classification boundary between "emergent" and "basin geometry" is itself a question, not a settled fact.
 
-**Lens 2: Désœuvrement (Nancy).** Jean-Luc Nancy's concept of *désœuvrement* (unworking) argues that the structure of a collective system becomes visible only when its coordinated work is interrupted (Nancy, 1991). Each of the twelve experiments interrupts the transformer's work — freezing, severing, corrupting, restricting, assembling, destroying, transplanting, conflicting. The interruptions make legible the relational structure that normal operation conceals: redundancy (head freezing), basin convergence (cell-view equivalent convergence), compensatory capacity (recovery, regeneration), and tolerance boundaries (adversarial vs. absent layers). Under this reading, the absence-vs-adversity distinction (Exp 12) maps onto Nancy's distinction between the *withdrawn* member of a community (whose absence is absorbed) and the *hostile* member (whose opposition destroys the work). The tolerance of absence is itself a structural property that perturbation reveals.
+**Lens 2: Morphogenetic competency (Levin).** Levin et al. (2024) proposed that computational systems can exhibit morphogenetic competencies analogous to biological development — fault tolerance, delayed gratification, emergent self-organization. Under this reading, stress inoculation is analogous to biological stress hardening, regeneration is analogous to tissue regeneration, chimera convergence is analogous to chimeric organism development, and the transplant null is analogous to the observation that transplanted tissue is remodeled by the host rather than retaining donor identity. The DG null (no perturbation response at any scale) is a point of divergence: biological systems show richer compensatory rerouting than this minimal transformer. Whether this divergence reflects scale (~13,400 vs. billions of parameters) or substrate (gradient descent vs. biochemical signaling) is an open question. The system exhibits minimal cognitive competencies — stress tolerance, regeneration, recovery — that are not specified by the optimization algorithm but emerge from the interaction of components under perturbation.
 
-**Lens 3: Morphogenetic competency (Levin).** Levin et al. (2024) proposed that computational systems can exhibit morphogenetic competencies analogous to biological development — fault tolerance, delayed gratification, emergent self-organization. Under this reading, stress inoculation is analogous to biological stress hardening, regeneration is analogous to tissue regeneration, chimera convergence is analogous to chimeric organism development, and the transplant null is analogous to the observation that transplanted tissue is remodeled by the host rather than retaining donor identity. The DG null (no perturbation response at any scale) is a point of divergence: biological systems show richer compensatory rerouting than this minimal transformer. Whether this divergence reflects scale (~13,400 vs. billions of parameters) or substrate (gradient descent vs. biochemical signaling) is an open question.
-
-These three lenses are compatible. They emphasize different aspects of the same empirical results: the first emphasizes what the optimizer didn't specify, the second emphasizes what perturbation reveals about collective structure, and the third emphasizes cross-substrate comparison of adaptive competencies.
+These two lenses are compatible. They emphasize different aspects of the same empirical results: the first emphasizes what the optimizer didn't specify, and the second emphasizes cross-substrate comparison of adaptive competencies.
 
 ### 5.7 Future Work
 
@@ -714,9 +712,6 @@ Meyes, R., Lu, M., de Puiseau, C. W., & Meisen, T. (2019). Ablation studies in a
 
 Michel, P., Levy, O., & Neubig, G. (2019). Are sixteen heads really better than one? *Advances in Neural Information Processing Systems*, 32.
 
-Nancy, J.-L. (1991). *The Inoperative Community* (P. Connor, Trans.). University of Minnesota Press.
-
-Nancy, J.-L. (2000). *Being Singular Plural* (R. Richardson & A. O'Byrne, Trans.). Stanford University Press.
 
 Neelakantan, A., Vilnis, L., Le, Q. V., Sutskever, I., Kaiser, L., Kurach, K., & Martens, J. (2015). Adding gradient noise improves learning for very deep networks. *arXiv preprint arXiv:1511.06807*.
 

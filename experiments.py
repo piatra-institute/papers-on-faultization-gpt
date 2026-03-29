@@ -1,9 +1,8 @@
 """
-MorphoGPT — Experiment Runner
+MorphoGPT — Experiment Runner (NumPy Backend)
 
-Run systematic experiments across perturbation types, damage levels,
-and configurations. Produce robustness curves, DG analysis, and
-rerouting measurements.
+Drop-in replacement for experiments.py using numpy arrays.
+Same interface: ExperimentConfig, run_experiment, run_sweep, experiment_*.
 """
 
 import os
@@ -12,12 +11,15 @@ import random
 import time
 from dataclasses import dataclass, field
 
-from morphogpt import (
+from model import (
     Hooks, Probe, TrainConfig,
-    make_config, init_state_dict, load_dataset, train, generate
+    make_config, init_state_dict, load_dataset, train, generate,
+    train_with_state, get_layer_keys, reset_layer, transplant_layer,
+    assemble_chimera, copy_state_dict, tokenize, _forward_backward,
+    _evaluate,
 )
 from perturbations import (
-    make_zero_head, make_freeze_params,
+    make_zero_head, make_ablate_head, make_freeze_params,
     schedule_chronic, schedule_acute, schedule_stochastic,
     make_noise_head,
     make_noise_injection, make_stop_gradient, make_noisy_gradients,
@@ -28,7 +30,12 @@ from perturbations import (
     freeze_random_heads, apply_stop_gradient_all,
     make_layered_vision, make_partial_stop_gradient,
     make_threatening_drive, make_round_robin_updates,
+    make_stop_gradient_grad_hook,
+    make_partial_stop_gradient_grad_hook,
+    freeze_specific_heads, unfreeze_heads,
+    make_gradual_noisy_gradients, make_noisy_gradients_scheduled,
 )
+import numpy as np
 from metrics import (
     summarize_probe, dg_index, robustness_curve_with_dg,
     dg_damage_regression, trajectory_envelope, compare_trajectory_envelopes,
@@ -36,6 +43,8 @@ from metrics import (
     head_contribution_evolution,
     cognitive_light_cone, collective_light_cone,
     goal_alignment_score, swarming_index,
+    recovery_overshoot, regeneration_completeness,
+    transplant_advantage, dual_objective_equilibrium,
 )
 
 
@@ -60,20 +69,23 @@ class ExperimentConfig:
     learning_rate: float = 0.01
 
     # Perturbation config
-    perturbation_type: str = 'none'    # see PERTURBATION_CATALOG
+    perturbation_type: str = 'none'
     perturbation_params: dict = field(default_factory=dict)
 
     # Schedule config
-    schedule: str = 'chronic'          # 'chronic', 'acute', 'stochastic'
+    schedule: str = 'chronic'
     schedule_params: dict = field(default_factory=dict)
+
+    # Local loss (cell-view mode)
+    local_loss: bool = False
 
     # Repetitions
     seed: int = 42
-    num_reps: int = 1                  # for sweeps: run this many times
+    num_reps: int = 1
 
     # Trajectory capture
-    capture_interval: int = 5        # record state every N steps
-    detail_level: str = 'summary'    # 'full', 'summary', or 'loss_only'
+    capture_interval: int = 5
+    detail_level: str = 'summary'
 
     # Output
     save_trajectory: bool = True
@@ -85,20 +97,11 @@ class ExperimentConfig:
 # Run a single experiment
 # ============================================================================
 
-def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None):
-    """
-    Run a single experiment.
-
-    Returns dict with:
-        config: the experiment config
-        probe: the Probe object
-        summary: summary statistics
-        samples: generated samples (if requested)
-        elapsed: wall clock time in seconds
-    """
-    # Load dataset if not provided
+def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None,
+                   val_docs=None):
+    """Run a single experiment. Returns result dict."""
     if docs is None:
-        docs, uchars, BOS, vocab_size = load_dataset()
+        docs, val_docs, uchars, BOS, vocab_size = load_dataset()
 
     config = make_config(
         n_layer=exp_config.n_layer,
@@ -125,148 +128,177 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
     pt = exp_config.perturbation_type
 
     frozen_heads = []
-
-    # Collect (name, fn) pairs for forward hooks so we can wrap with schedule
     pending_hooks = []
 
-    if pt == 'none':
-        pass
+    def _apply_perturbation(pt, pp, hooks, pending_hooks, grad_hooks, config, seed):
+        """Dispatch a single perturbation type. Modifies hooks/grad_hooks in place."""
+        nonlocal frozen_heads
+        if pt == 'none':
+            pass
 
-    elif pt == 'freeze_heads':
-        num = pp.get('num_heads', 1)
-        rng = random.Random(exp_config.seed + 1000)
-        frozen_heads = freeze_random_heads(hooks, config, num, rng=rng)
+        elif pt == 'freeze_heads':
+            num = pp.get('num_heads', 1)
+            rng = random.Random(seed + 1000)
+            frozen_heads, freeze_gh = freeze_random_heads(config, num, rng=rng)
+            grad_hooks.extend(freeze_gh)
 
-    elif pt == 'zero_head':
-        layer = pp.get('layer', 0)
-        head = pp.get('head', 0)
-        name, fn = make_zero_head(layer, head, config['head_dim'])
-        pending_hooks.append((name, fn))
-
-    elif pt == 'noise_heads':
-        num = pp.get('num_heads', 1)
-        noise_std = pp.get('noise_std', 0.1)
-        rng = random.Random(exp_config.seed + 1000)
-        all_heads = [(li, h) for li in range(config['n_layer'])
-                     for h in range(config['n_head'])]
-        rng.shuffle(all_heads)
-        for li, h in all_heads[:num]:
-            name, fn = make_noise_head(li, h, config['head_dim'],
-                                       noise_std=noise_std, rng=rng)
+        elif pt == 'zero_head':
+            layer = pp.get('layer', 0)
+            head = pp.get('head', 0)
+            name, fn = make_zero_head(layer, head, config['head_dim'])
             pending_hooks.append((name, fn))
 
-    elif pt == 'noise_injection':
-        hook_name = pp.get('hook_name', 'emb')
-        noise_std = pp.get('noise_std', 0.1)
-        name, fn = make_noise_injection(hook_name, noise_std)
-        pending_hooks.append((name, fn))
+        elif pt == 'noise_heads':
+            num = pp.get('num_heads', 1)
+            noise_std = pp.get('noise_std', 0.1)
+            rng = random.Random(seed + 1000)
+            all_heads = [(li, h) for li in range(config['n_layer'])
+                         for h in range(config['n_head'])]
+            rng.shuffle(all_heads)
+            for li, h in all_heads[:num]:
+                name, fn = make_noise_head(li, h, config['head_dim'],
+                                           noise_std=noise_std, rng=rng)
+                pending_hooks.append((name, fn))
 
-    elif pt == 'stop_gradient':
-        layers = pp.get('layers', 'all')
-        if layers == 'all':
-            apply_stop_gradient_all(hooks, config)
+        elif pt == 'noise_injection':
+            hook_name = pp.get('hook_name', 'emb')
+            noise_std = pp.get('noise_std', 0.1)
+            name, fn = make_noise_injection(hook_name, noise_std,
+                                            rng=random.Random(seed + 4000))
+            pending_hooks.append((name, fn))
+
+        elif pt == 'stop_gradient':
+            layers = pp.get('layers', 'all')
+            if layers == 'all':
+                apply_stop_gradient_all(hooks, config, grad_hooks)
+            else:
+                for li in layers:
+                    name, fn = make_stop_gradient(li)
+                    pending_hooks.append((name, fn))
+                    grad_hooks.append(make_stop_gradient_grad_hook(li, config))
+
+        elif pt == 'noisy_gradients':
+            noise_std = pp.get('noise_std', 0.01)
+            grad_hooks.append(make_noisy_gradients(noise_std,
+                              rng=np.random.RandomState(seed + 7000)))
+
+        elif pt == 'sign_only_gradients':
+            grad_hooks.append(make_sign_only_gradients())
+
+        elif pt == 'quantized_gradients':
+            levels = pp.get('levels', 3)
+            grad_hooks.append(make_quantized_gradients(levels))
+
+        elif pt == 'delayed_gradients':
+            delay = pp.get('delay_steps', 5)
+            grad_hooks.append(make_delayed_gradients(delay))
+
+        elif pt == 'dropout':
+            drop_prob = pp.get('drop_prob', 0.1)
+            drop_rng = random.Random(seed + 5000)
+            for li in range(config['n_layer']):
+                name, fn = make_dropout(f'mlp_hidden.{li}', drop_prob,
+                                        rng=drop_rng)
+                pending_hooks.append((name, fn))
+
+        elif pt == 'stochastic_relu':
+            flip_prob = pp.get('flip_prob', 0.05)
+            srelu_rng = random.Random(seed + 6000)
+            for li in range(config['n_layer']):
+                name, fn = make_stochastic_relu(f'mlp_hidden.{li}', flip_prob,
+                                                rng=srelu_rng)
+                pending_hooks.append((name, fn))
+
+        elif pt == 'windowed_attention':
+            window = pp.get('window_size', 4)
+            for li in range(config['n_layer']):
+                for h in range(config['n_head']):
+                    name, fn = make_windowed_attention(li, h, window)
+                    pending_hooks.append((name, fn))
+
+        elif pt == 'sparse_attention':
+            keep_prob = pp.get('keep_prob', 0.5)
+            rng = random.Random(seed + 2000)
+            for li in range(config['n_layer']):
+                for h in range(config['n_head']):
+                    name, fn = make_sparse_attention(li, h, keep_prob, rng=rng)
+                    pending_hooks.append((name, fn))
+
+        elif pt == 'async_updates':
+            freqs = pp.get('layer_frequencies', {0: 1, 1: 2, 2: 5, 3: 10})
+            grad_hooks.append(make_async_updates(freqs))
+
+        elif pt == 'update_budget':
+            fraction = pp.get('budget_fraction', 0.5)
+            grad_hooks.append(make_update_budget(fraction))
+
+        elif pt == 'adversarial_heads':
+            num = pp.get('num_heads', 1)
+            rng = random.Random(seed + 3000)
+            all_heads = [(li, h) for li in range(config['n_layer'])
+                         for h in range(config['n_head'])]
+            rng.shuffle(all_heads)
+            for li, h in all_heads[:num]:
+                grad_hooks.append(make_adversarial_head(li, h, config['head_dim']))
+
+        elif pt == 'freeze_params':
+            param_names = pp.get('param_names', [])
+            grad_hooks.append(make_freeze_params(param_names))
+
+        elif pt == 'layered_vision':
+            radius_per_layer = pp.get('radius_per_layer', {})
+            hook_pairs = make_layered_vision(config, radius_per_layer)
+            pending_hooks.extend(hook_pairs)
+
+        elif pt == 'partial_stop_gradient':
+            layers = pp.get('layers', 'all')
+            pass_fraction = pp.get('pass_fraction', 0.5)
+            if layers == 'all':
+                for li in range(config['n_layer'] - 1):
+                    name, fn = make_partial_stop_gradient(li, pass_fraction)
+                    pending_hooks.append((name, fn))
+                    grad_hooks.append(
+                        make_partial_stop_gradient_grad_hook(li, pass_fraction, config))
+            else:
+                for li in layers:
+                    name, fn = make_partial_stop_gradient(li, pass_fraction)
+                    pending_hooks.append((name, fn))
+                    grad_hooks.append(
+                        make_partial_stop_gradient_grad_hook(li, pass_fraction, config))
+
+        elif pt == 'threatening_drive':
+            strength = pp.get('strength', 0.1)
+            for li in range(config['n_layer']):
+                for h in range(config['n_head']):
+                    grad_hooks.append(
+                        make_threatening_drive(li, h, config['head_dim'], strength))
+
+        elif pt == 'round_robin_updates':
+            period = pp.get('period', 1)
+            grad_hooks.append(make_round_robin_updates(config, period))
+
         else:
-            for li in layers:
-                name, fn = make_stop_gradient(li)
-                pending_hooks.append((name, fn))
+            raise ValueError(f"Unknown perturbation type: {pt}")
 
-    elif pt == 'noisy_gradients':
-        noise_std = pp.get('noise_std', 0.01)
-        grad_hooks.append(make_noisy_gradients(noise_std))
-
-    elif pt == 'sign_only_gradients':
-        grad_hooks.append(make_sign_only_gradients())
-
-    elif pt == 'quantized_gradients':
-        levels = pp.get('levels', 3)
-        grad_hooks.append(make_quantized_gradients(levels))
-
-    elif pt == 'delayed_gradients':
-        delay = pp.get('delay_steps', 5)
-        grad_hooks.append(make_delayed_gradients(delay))
-
-    elif pt == 'dropout':
-        drop_prob = pp.get('drop_prob', 0.1)
-        for li in range(config['n_layer']):
-            name, fn = make_dropout(f'mlp_hidden.{li}', drop_prob)
-            pending_hooks.append((name, fn))
-
-    elif pt == 'stochastic_relu':
-        flip_prob = pp.get('flip_prob', 0.05)
-        for li in range(config['n_layer']):
-            name, fn = make_stochastic_relu(f'mlp_hidden.{li}', flip_prob)
-            pending_hooks.append((name, fn))
-
-    elif pt == 'windowed_attention':
-        window = pp.get('window_size', 4)
-        for li in range(config['n_layer']):
-            for h in range(config['n_head']):
-                name, fn = make_windowed_attention(li, h, window)
-                pending_hooks.append((name, fn))
-
-    elif pt == 'sparse_attention':
-        keep_prob = pp.get('keep_prob', 0.5)
-        rng = random.Random(exp_config.seed + 2000)
-        for li in range(config['n_layer']):
-            for h in range(config['n_head']):
-                name, fn = make_sparse_attention(li, h, keep_prob, rng=rng)
-                pending_hooks.append((name, fn))
-
-    elif pt == 'async_updates':
-        freqs = pp.get('layer_frequencies', {0: 1, 1: 2, 2: 5, 3: 10})
-        grad_hooks.append(make_async_updates(freqs))
-
-    elif pt == 'update_budget':
-        fraction = pp.get('budget_fraction', 0.5)
-        grad_hooks.append(make_update_budget(fraction))
-
-    elif pt == 'adversarial_heads':
-        num = pp.get('num_heads', 1)
-        rng = random.Random(exp_config.seed + 3000)
-        all_heads = [(li, h) for li in range(config['n_layer'])
-                     for h in range(config['n_head'])]
-        rng.shuffle(all_heads)
-        for li, h in all_heads[:num]:
-            grad_hooks.append(make_adversarial_head(li, h, config['head_dim']))
-
-    elif pt == 'freeze_params':
-        param_names = pp.get('param_names', [])
-        grad_hooks.append(make_freeze_params(param_names))
-
-    elif pt == 'layered_vision':
-        radius_per_layer = pp.get('radius_per_layer', {})
-        hook_pairs = make_layered_vision(config, radius_per_layer)
-        pending_hooks.extend(hook_pairs)
-
-    elif pt == 'partial_stop_gradient':
-        layers = pp.get('layers', 'all')
-        pass_fraction = pp.get('pass_fraction', 0.5)
-        if layers == 'all':
-            for li in range(config['n_layer'] - 1):
-                name, fn = make_partial_stop_gradient(li, pass_fraction)
-                pending_hooks.append((name, fn))
-        else:
-            for li in layers:
-                name, fn = make_partial_stop_gradient(li, pass_fraction)
-                pending_hooks.append((name, fn))
-
-    elif pt == 'threatening_drive':
-        strength = pp.get('strength', 0.1)
-        for li in range(config['n_layer']):
-            for h in range(config['n_head']):
-                grad_hooks.append(
-                    make_threatening_drive(li, h, config['head_dim'], strength))
-
-    elif pt == 'round_robin_updates':
-        period = pp.get('period', 1)
-        grad_hooks.append(make_round_robin_updates(config, period))
-
+    if pt == 'composite':
+        for sub in pp.get('perturbations', []):
+            _apply_perturbation(
+                sub['type'], sub.get('params', {}),
+                hooks, pending_hooks, grad_hooks, config, exp_config.seed)
     else:
-        raise ValueError(f"Unknown perturbation type: {pt}")
+        _apply_perturbation(pt, pp, hooks, pending_hooks, grad_hooks, config,
+                            exp_config.seed)
 
-    # --- Apply schedule wrapping and register pending hooks ---
+    # --- Validate schedule + grad hook compatibility ---
     sched = exp_config.schedule
     sp = exp_config.schedule_params
+    if grad_hooks and sched != 'chronic':
+        raise ValueError(
+            f"Schedule '{sched}' is not supported with gradient hooks. "
+            f"Gradient hooks only support 'chronic' schedule."
+        )
+
+    # --- Apply schedule wrapping and register pending hooks ---
     for name, fn in pending_hooks:
         if sched == 'acute':
             fn = schedule_acute(fn, sp.get('start_step', 0), sp.get('end_step', 100))
@@ -286,6 +318,8 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
                     detail_level=exp_config.detail_level),
         grad_hooks=grad_hooks if grad_hooks else None,
         seed=exp_config.seed,
+        local_loss=exp_config.local_loss,
+        val_docs=val_docs,
     )
     elapsed = time.time() - t0
 
@@ -316,13 +350,10 @@ def run_experiment(exp_config, docs=None, uchars=None, BOS=None, vocab_size=None
 # Run a sweep of experiments
 # ============================================================================
 
-def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None):
-    """
-    Run a batch of experiments.
-    Returns list of result dicts.
-    """
+def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None,
+              val_docs=None):
     if docs is None:
-        docs, uchars, BOS, vocab_size = load_dataset()
+        docs, val_docs, uchars, BOS, vocab_size = load_dataset()
 
     results = []
     total = sum(c.num_reps for c in configs)
@@ -331,7 +362,6 @@ def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None):
     for cfg in configs:
         for rep in range(cfg.num_reps):
             run_idx += 1
-            # Vary seed per repetition
             rep_cfg = ExperimentConfig(
                 name=cfg.name,
                 description=cfg.description,
@@ -352,12 +382,14 @@ def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None):
                 save_trajectory=cfg.save_trajectory,
                 save_samples=cfg.save_samples,
                 print_progress=False,
+                local_loss=cfg.local_loss,
             )
 
             print(f"\n[{run_idx}/{total}] {cfg.name} (rep {rep+1}/{cfg.num_reps}, "
                   f"seed={rep_cfg.seed})")
 
-            result = run_experiment(rep_cfg, docs, uchars, BOS, vocab_size)
+            result = run_experiment(rep_cfg, docs, uchars, BOS, vocab_size,
+                                    val_docs=val_docs)
             results.append(result)
 
             print(f"  loss={result['summary']['final_loss']:.4f} "
@@ -368,32 +400,65 @@ def run_sweep(configs, docs=None, uchars=None, BOS=None, vocab_size=None):
 
 
 # ============================================================================
+# Save/load results (same format as original)
+# ============================================================================
+
+def save_results(results, filepath):
+    """Save experiment results to JSON."""
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    data = []
+    for r in results:
+        entry = {
+            'name': r['config'].name,
+            'description': r['config'].description,
+            'seed': r['config'].seed,
+            'perturbation_type': r['config'].perturbation_type,
+            'perturbation_params': r['config'].perturbation_params,
+            'num_steps': r['config'].num_steps,
+            'summary': r['summary'],
+            'loss_trajectory': r['probe'].get_loss_values(),
+        }
+        # Head norms and entropies
+        if r['probe'].head_outputs:
+            entry['head_norms'] = {
+                f"{k[0]},{k[1]}": [(s, n) for s, n in v]
+                for k, v in r['probe'].head_outputs.items()
+            }
+        if r['probe'].attention_entropies:
+            entry['head_entropies'] = {
+                f"{k[0]},{k[1]}": [(s, e) for s, e in v]
+                for k, v in r['probe'].attention_entropies.items()
+            }
+        # Validation losses
+        if r['probe'].val_losses:
+            entry['val_trajectory'] = [(s, l) for s, l in r['probe'].val_losses]
+            entry['summary']['val_final_loss'] = r['probe'].val_losses[-1][1]
+            entry['summary']['val_mean_loss'] = sum(
+                l for _, l in r['probe'].val_losses) / len(r['probe'].val_losses)
+        # Phases and DG
+        loss_vals = r['probe'].get_loss_values()
+        entry['phases'] = detect_phases(loss_vals)
+        entry['dg_episodes'] = compute_delayed_gratification(loss_vals)
+        if r['samples']:
+            entry['samples'] = r['samples']
+        data.append(entry)
+
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=2, default=str)
+    print(f"  Saved {len(data)} results to {filepath}")
+
+
+# ============================================================================
 # Experiment 1: Head Freezing Robustness Curve
 # ============================================================================
 
-def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
-    """
-    The first experiment: freeze increasing numbers of heads and measure
-    robustness + delayed gratification.
-
-    This directly mirrors Levin's frozen cell experiment (Figure 5 in the paper).
-
-    Args:
-        num_reps: repetitions per configuration
-        num_steps: training steps (reduce for faster testing)
-        n_layer: number of layers
-
-    Returns:
-        results dict with robustness curve data
-    """
+def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 1: Head Freezing Robustness Curve")
     print("=" * 60)
 
     n_head = 4
     total_heads = n_layer * n_head
-
-    # Damage levels: 0, 1, 2, 4, 8, 12, 16 frozen heads (of 16 total for n_layer=4)
     damage_levels = [0, 1, 2, 4]
     if total_heads >= 8:
         damage_levels.append(8)
@@ -405,59 +470,38 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
     for num_frozen in damage_levels:
         pt = 'none' if num_frozen == 0 else 'freeze_heads'
         pp = {} if num_frozen == 0 else {'num_heads': num_frozen}
-
         configs.append(ExperimentConfig(
             name=f'freeze_{num_frozen}',
             description=f'Freeze {num_frozen}/{total_heads} heads',
-            n_layer=n_layer,
-            num_steps=num_steps,
-            perturbation_type=pt,
-            perturbation_params=pp,
-            num_reps=num_reps,
-            seed=42,
-            print_progress=False,
+            n_layer=n_layer, num_steps=num_steps,
+            perturbation_type=pt, perturbation_params=pp,
+            num_reps=num_reps, seed=42, print_progress=False,
         ))
 
-    # Load dataset once
-    docs, uchars, BOS, vocab_size = load_dataset()
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
-    # Run all experiments
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    # Save results
+    save_results(all_results, os.path.join(os.path.dirname(__file__),
+                 'results', f'experiment1_head_freezing{result_suffix}.json'))
 
-    t0 = time.time()
-
-    # Organize results by damage level
+    # Organize and print
     results_by_level = {}
     for result in all_results:
         pt = result['summary']['perturbation_type']
-        if pt == 'none':
-            level = 0
-        else:
-            level = result['summary']['perturbation_params']['num_heads']
-
+        level = 0 if pt == 'none' else result['summary']['perturbation_params']['num_heads']
         loss_vals = result['probe'].get_loss_values()
         final_loss = result['summary']['final_loss']
-
         results_by_level.setdefault(level, []).append((final_loss, loss_vals))
 
-    print(f"  [timing] organize results: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # Compute robustness curve
     curve = robustness_curve_with_dg(results_by_level)
 
-    print(f"  [timing] robustness curve: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # --- TRAJECTORY ANALYSIS ---
-
-    # Trajectory envelopes per damage level
+    # Trajectory analysis
     envelopes = {}
     for level, entries in sorted(results_by_level.items()):
         trajectories = [loss_vals for _, loss_vals in entries]
         envelopes[level] = trajectory_envelope(trajectories)
 
-    print(f"  [timing] trajectory envelopes: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # Phase detection per damage level
     phases_by_level = {}
     for level, entries in sorted(results_by_level.items()):
         level_phases = []
@@ -465,9 +509,6 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
             level_phases.append(detect_phases(loss_vals))
         phases_by_level[level] = level_phases
 
-    print(f"  [timing] phase detection: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # DG episodes as trajectory events with timing
     dg_episodes_by_level = {}
     for level, entries in sorted(results_by_level.items()):
         level_episodes = []
@@ -475,9 +516,6 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
             level_episodes.append(compute_delayed_gratification(loss_vals))
         dg_episodes_by_level[level] = level_episodes
 
-    print(f"  [timing] DG episodes: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # Per-head rerouting analysis
     rerouting_by_level = {}
     for result in all_results:
         pt = result['summary']['perturbation_type']
@@ -486,9 +524,6 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
             rerouting = per_step_rerouting(result['probe'])
             rerouting_by_level.setdefault(level, []).append(rerouting)
 
-    print(f"  [timing] rerouting: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # Compare trajectory shapes: baseline vs each damage level
     shape_comparisons = {}
     if 0 in envelopes:
         for level in sorted(envelopes.keys()):
@@ -497,27 +532,21 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
             shape_comparisons[level] = compare_trajectory_envelopes(
                 envelopes[0], envelopes[level])
 
-    print(f"  [timing] shape comparisons: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # --- PRINT TRAJECTORY-FOCUSED RESULTS ---
-
+    # Print results
     print("\n" + "=" * 60)
     print("TRAJECTORY ANALYSIS: Head Freezing")
     print("=" * 60)
 
-    # Phase structure per damage level
     print("\n--- Phase Structure ---")
     for level in sorted(phases_by_level.keys()):
         all_phases = phases_by_level[level]
         if not all_phases or not all_phases[0]:
             continue
-        # Summarize: most common phase sequence across reps
         first_run = all_phases[0]
         phase_seq = ' -> '.join(p['type'] for p in first_run)
         print(f"  {level:2d} frozen: {phase_seq}")
 
-    # DG episodes as events
-    print("\n--- DG Episodes (trajectory events) ---")
+    print("\n--- DG Episodes ---")
     for level in sorted(dg_episodes_by_level.keys()):
         all_eps = dg_episodes_by_level[level]
         total_eps = sum(len(eps) for eps in all_eps)
@@ -533,7 +562,6 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
         else:
             print(f"  {level:2d} frozen: no DG episodes")
 
-    # Trajectory shape comparison
     if shape_comparisons:
         print("\n--- Trajectory Shape vs Baseline ---")
         for level, comp in sorted(shape_comparisons.items()):
@@ -543,54 +571,13 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
                   f"correlation={comp['shape_correlation']:.3f}, "
                   f"overlap={comp['overlap_fraction']:.2f}")
 
-    # Rerouting analysis
-    if rerouting_by_level:
-        print("\n--- Head Rerouting (compensating heads) ---")
-        for level in sorted(rerouting_by_level.keys()):
-            rerouting_runs = rerouting_by_level[level]
-            if rerouting_runs and rerouting_runs[0]:
-                top = rerouting_runs[0][:3]  # top 3 compensators from first run
-                comp_str = ', '.join(
-                    f"L{r['layer']}H{r['head']}(+{r['slope']:.4f})"
-                    for r in top)
-                print(f"  {level:2d} frozen: top compensators: {comp_str}")
-
-    # Head contribution evolution on damaged runs
-    contribution_by_level = {}
-    for result in all_results:
-        pt = result['summary']['perturbation_type']
-        if pt != 'none' and result['probe'].head_outputs:
-            level = result['summary']['perturbation_params']['num_heads']
-            evo = head_contribution_evolution(result['probe'])
-            contribution_by_level.setdefault(level, []).append(evo)
-
-    if contribution_by_level:
-        print("\n--- Head Contribution Evolution ---")
-        for level in sorted(contribution_by_level.keys()):
-            evos = contribution_by_level[level]
-            if not evos or not evos[0]:
-                continue
-            evo = evos[0]  # first run
-            parts = []
-            for (li, hi), series in sorted(evo.items()):
-                if len(series) >= 2:
-                    first_frac = series[0][1]
-                    last_frac = series[-1][1]
-                    parts.append(f"L{li}H{hi}: {first_frac:.3f}->{last_frac:.3f}")
-            if parts:
-                print(f"  {level:2d} frozen: {', '.join(parts)}")
-
-    print(f"  [timing] contribution evolution: {time.time() - t0:.1f}s"); t0 = time.time()
-
-    # Endpoint table (secondary)
-    print("\n--- Endpoints (secondary) ---")
+    print("\n--- Endpoints ---")
     print(f"{'Frozen':>8} {'Mean Loss':>10} {'Std':>8} {'Mean DG':>8} {'Std DG':>8} {'N':>4}")
     print("-" * 50)
     for c in curve:
         print(f"{c['damage_level']:>8d} {c['mean_loss']:>10.4f} {c['std_loss']:>8.4f} "
               f"{c['mean_dg']:>8.3f} {c['std_dg']:>8.3f} {c['n']:>4d}")
 
-    # DG-damage regression
     damage_levels_flat = []
     dg_indices_flat = []
     for level, entries in sorted(results_by_level.items()):
@@ -600,66 +587,43 @@ def experiment_head_freezing(num_reps=5, num_steps=200, n_layer=4):
 
     slope, intercept, r_sq = dg_damage_regression(damage_levels_flat, dg_indices_flat)
     print(f"\nDG-Damage regression: slope={slope:.4f}, intercept={intercept:.4f}, R²={r_sq:.4f}")
-    if slope > 0 and r_sq > 0.1:
-        print("  -> DG increases with damage (evidence for genuine rerouting)")
-    else:
-        print("  -> No clear DG-damage relationship")
 
     return {
         'curve': curve,
         'all_results': all_results,
         'results_by_level': results_by_level,
         'envelopes': envelopes,
-        'phases_by_level': phases_by_level,
-        'dg_episodes_by_level': dg_episodes_by_level,
-        'rerouting_by_level': rerouting_by_level,
-        'shape_comparisons': shape_comparisons,
-        'dg_regression': {'slope': slope, 'intercept': intercept, 'r_squared': r_sq},
     }
 
 
 # ============================================================================
-# Experiment 2: Cell-View GPT (Stop-Gradient)
+# Experiment 2: Cell-View GPT
 # ============================================================================
 
-def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4):
-    """
-    Cell-view GPT: cut gradient flow between layers.
-    Compare baseline (global backprop) vs cell-view (stop-gradient).
-    Then combine with damage to test if cell-view is more robust.
-    """
+def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
-    print("EXPERIMENT 2: Cell-View GPT (Stop-Gradient)")
+    print("EXPERIMENT 2: Cell-View GPT (Local Loss)")
     print("=" * 60)
 
     configs = [
-        # Baseline
         ExperimentConfig(
-            name='baseline',
-            description='Global backprop (standard)',
-            n_layer=n_layer,
-            num_steps=num_steps,
-            perturbation_type='none',
-            num_reps=num_reps,
-            seed=42,
+            name='baseline', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='none', num_reps=num_reps, seed=42,
         ),
-        # Cell-view (all stop-gradients)
         ExperimentConfig(
-            name='cell_view',
-            description='Stop-gradient at all layer boundaries',
-            n_layer=n_layer,
-            num_steps=num_steps,
-            perturbation_type='stop_gradient',
-            perturbation_params={'layers': 'all'},
-            num_reps=num_reps,
-            seed=42,
+            name='cell_view', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='none',
+            local_loss=True,
+            num_reps=num_reps, seed=42,
         ),
     ]
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
-    # Compare
+    save_results(results, os.path.join(os.path.dirname(__file__),
+                 'results', f'experiment2_cell_view{result_suffix}.json'))
+
     print("\n" + "=" * 60)
     print("RESULTS: Cell-View vs Baseline")
     print("=" * 60)
@@ -676,13 +640,10 @@ def experiment_cell_view(num_reps=5, num_steps=200, n_layer=4):
 
 
 # ============================================================================
-# Experiment 3: Gradient Degradation (A10)
+# Experiment 3: Gradient Degradation
 # ============================================================================
 
-def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4):
-    """
-    Test how degraded gradient information affects learning.
-    """
+def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 3: Gradient Degradation")
     print("=" * 60)
@@ -717,8 +678,11 @@ def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4):
         ),
     ]
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
+
+    save_results(results, os.path.join(os.path.dirname(__file__),
+                 'results', f'experiment3_gradient_degradation{result_suffix}.json'))
 
     print("\n" + "=" * 60)
     print("RESULTS: Gradient Degradation")
@@ -735,54 +699,37 @@ def experiment_gradient_degradation(num_reps=5, num_steps=200, n_layer=4):
 
 
 # ============================================================================
-# Experiment 4: Vision Radius Sweep (Kofman et al., 2025)
+# Experiment 4: Vision Radius Sweep
 # ============================================================================
 
-def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4):
-    """
-    Sweep windowed attention across window sizes to test whether intermediate
-    restriction outperforms both minimal and full context.
-
-    Parallels the chess paper's R0-R7 vision radius finding (optimal at R4).
-
-    Hypothesis: Medium windows (4-8) match or beat full attention (16),
-    paralleling R4 > R7. DG should increase with restricted windows.
-    """
+def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 4: Vision Radius Sweep")
     print("=" * 60)
 
-    window_sizes = [1, 2, 4, 8, 16]  # 16 = full context (baseline equivalent)
+    window_sizes = [1, 2, 4, 8, 16]
 
     configs = [
-        # Baseline (no windowed attention)
         ExperimentConfig(
-            name='baseline',
-            description='Full attention (no window restriction)',
-            n_layer=n_layer,
-            num_steps=num_steps,
-            perturbation_type='none',
-            num_reps=num_reps,
-            seed=42,
+            name='baseline', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='none', num_reps=num_reps, seed=42,
         ),
     ]
 
     for ws in window_sizes:
         configs.append(ExperimentConfig(
-            name=f'window_{ws}',
-            description=f'Windowed attention, window_size={ws}',
-            n_layer=n_layer,
-            num_steps=num_steps,
+            name=f'window_{ws}', n_layer=n_layer, num_steps=num_steps,
             perturbation_type='windowed_attention',
             perturbation_params={'window_size': ws},
-            num_reps=num_reps,
-            seed=42,
+            num_reps=num_reps, seed=42,
         ))
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
-    # Organize by window size
+    save_results(all_results, os.path.join(os.path.dirname(__file__),
+                 'results', f'experiment4_vision_radius{result_suffix}.json'))
+
     results_by_window = {}
     for result in all_results:
         name = result['config'].name
@@ -796,10 +743,8 @@ def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4):
             'final_loss': final_loss,
             'loss_vals': loss_vals,
             'dg': dg_index(loss_vals),
-            'probe': result['probe'],
         })
 
-    # Print results
     print("\n" + "=" * 60)
     print("RESULTS: Vision Radius Sweep")
     print("=" * 60)
@@ -820,45 +765,14 @@ def experiment_vision_radius(num_reps=5, num_steps=200, n_layer=4):
         label = str(ws) if ws != 'full' else 'full'
         print(f"{label:>8} {mean_l:>10.4f} {std_l:>8.4f} {mean_dg:>8.3f} {n:>4d}")
 
-    # Chess-paper metrics on first run per condition
-    print("\n--- Cognitive Light Cone (chess-paper metric) ---")
-    for ws in ['full'] + window_sizes:
-        entries = results_by_window.get(ws, [])
-        if entries and entries[0]['probe'].head_outputs:
-            clc = collective_light_cone(entries[0]['probe'])
-            label = str(ws) if ws != 'full' else 'full'
-            print(f"  window={label:>4}: spatial={clc['mean_spatial']:.3f}, "
-                  f"temporal={clc['mean_temporal']:.1f}, "
-                  f"combined={clc['mean_combined']:.3f}")
-
-    return {
-        'all_results': all_results,
-        'results_by_window': results_by_window,
-    }
+    return {'all_results': all_results, 'results_by_window': results_by_window}
 
 
 # ============================================================================
-# Experiment 5: Communication Topology (Kofman et al., 2025)
+# Experiment 5: Communication Topology
 # ============================================================================
 
-def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4):
-    """
-    Extend the binary cell-view experiment into a spectrum of gradient
-    flow topologies.
-
-    Parallels the chess paper's finding that relay chains expand the
-    cognitive light cone without requiring global information.
-
-    Conditions:
-        - full: standard backpropagation (pass_fraction=1.0)
-        - heavy: most gradient passes through (pass_fraction=0.75)
-        - half: half gradient passes (pass_fraction=0.5)
-        - light: little gradient passes (pass_fraction=0.25)
-        - cell_view: no gradient flow (pass_fraction=0.0)
-
-    Hypothesis: Intermediate gradient flow (0.25-0.5) outperforms both
-    full backprop and complete isolation.
-    """
+def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 5: Communication Topology")
     print("=" * 60)
@@ -875,41 +789,31 @@ def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4):
     for name, fraction in topologies:
         if fraction >= 1.0:
             configs.append(ExperimentConfig(
-                name=name,
-                description=f'Gradient pass fraction={fraction}',
-                n_layer=n_layer,
-                num_steps=num_steps,
-                perturbation_type='none',
-                num_reps=num_reps,
-                seed=42,
+                name=name, n_layer=n_layer, num_steps=num_steps,
+                perturbation_type='none', num_reps=num_reps, seed=42,
             ))
         elif fraction <= 0.0:
+            # cell_view uses local loss (true cell-view mode)
             configs.append(ExperimentConfig(
-                name=name,
-                description=f'Gradient pass fraction={fraction} (full cell-view)',
-                n_layer=n_layer,
-                num_steps=num_steps,
-                perturbation_type='stop_gradient',
-                perturbation_params={'layers': 'all'},
-                num_reps=num_reps,
-                seed=42,
+                name=name, n_layer=n_layer, num_steps=num_steps,
+                perturbation_type='none',
+                local_loss=True,
+                num_reps=num_reps, seed=42,
             ))
         else:
             configs.append(ExperimentConfig(
-                name=name,
-                description=f'Gradient pass fraction={fraction}',
-                n_layer=n_layer,
-                num_steps=num_steps,
+                name=name, n_layer=n_layer, num_steps=num_steps,
                 perturbation_type='partial_stop_gradient',
                 perturbation_params={'layers': 'all', 'pass_fraction': fraction},
-                num_reps=num_reps,
-                seed=42,
+                num_reps=num_reps, seed=42,
             ))
 
-    docs, uchars, BOS, vocab_size = load_dataset()
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
-    # Print results
+    save_results(all_results, os.path.join(os.path.dirname(__file__),
+                 'results', f'experiment5_communication{result_suffix}.json'))
+
     print("\n" + "=" * 60)
     print("RESULTS: Communication Topology")
     print("=" * 60)
@@ -927,132 +831,82 @@ def experiment_communication_topology(num_reps=5, num_steps=200, n_layer=4):
         mean_dg = sum(dgs) / len(dgs)
         print(f"{name:>12} {fraction:>9.2f} {mean_l:>10.4f} {mean_dg:>8.3f}")
 
-    # Goal alignment scores
-    print("\n--- Goal Alignment Score (chess-paper metric) ---")
-    for name, fraction in topologies:
-        group = [r for r in all_results if r['config'].name == name]
-        if group and group[0]['probe'].head_outputs:
-            ga = goal_alignment_score(group[0]['probe'])
-            print(f"  {name:>12}: mean alignment = {ga['mean_alignment']:.4f}")
-
     return all_results
 
 
 # ============================================================================
-# Experiment 6: Courage vs. Caution (Kofman et al., 2025)
+# Experiment 6: Courage vs. Caution
 # ============================================================================
 
-def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4):
-    """
-    Test four combinations of forward-pass stability and gradient boldness.
-
-    Parallels the chess paper's finding that "cautious position, courageous
-    moves" is the optimal strategy (conservative evaluation + aggressive action).
-
-    Conditions:
-        (a) cautious/cautious: low noise everywhere
-        (b) cautious/courageous: stable forward pass, sign-only gradients (predicted best)
-        (c) courageous/cautious: noisy forward (dropout), careful gradients
-        (d) courageous/courageous: noise everywhere
-
-    Hypothesis: Condition (b) wins, paralleling the chess paper.
-    Anomaly 1 (frozen heads help) and Anomaly 2 (sign-only works) already
-    hint at this: stable representations + bold updates.
-    """
+def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
     print("=" * 60)
     print("EXPERIMENT 6: Courage vs. Caution")
     print("=" * 60)
 
     configs = [
-        # Baseline for reference
         ExperimentConfig(
-            name='baseline',
-            description='No perturbation',
-            n_layer=n_layer,
-            num_steps=num_steps,
-            perturbation_type='none',
-            num_reps=num_reps,
-            seed=42,
+            name='baseline', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='none', num_reps=num_reps, seed=42,
+        ),
+        # Cautious forward (tiny noise) + Cautious gradient (sign-only)
+        ExperimentConfig(
+            name='cautious_cautious', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'noise_injection', 'params': {'hook_name': 'emb', 'noise_std': 0.001}},
+                {'type': 'sign_only_gradients'},
+            ]},
+            num_reps=num_reps, seed=42,
+        ),
+        # Cautious forward (tiny noise) + Courageous gradient (noisy sigma=0.1)
+        ExperimentConfig(
+            name='cautious_courageous', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'noise_injection', 'params': {'hook_name': 'emb', 'noise_std': 0.001}},
+                {'type': 'noisy_gradients', 'params': {'noise_std': 0.1}},
+            ]},
+            num_reps=num_reps, seed=42,
+        ),
+        # Courageous forward (dropout) + Cautious gradient (sign-only)
+        ExperimentConfig(
+            name='courageous_cautious', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'dropout', 'params': {'drop_prob': 0.1}},
+                {'type': 'sign_only_gradients'},
+            ]},
+            num_reps=num_reps, seed=42,
+        ),
+        # Courageous forward (dropout) + Courageous gradient (noisy sigma=0.1)
+        ExperimentConfig(
+            name='courageous_courageous', n_layer=n_layer, num_steps=num_steps,
+            perturbation_type='composite',
+            perturbation_params={'perturbations': [
+                {'type': 'dropout', 'params': {'drop_prob': 0.1}},
+                {'type': 'noisy_gradients', 'params': {'noise_std': 0.1}},
+            ]},
+            num_reps=num_reps, seed=42,
         ),
     ]
 
-    # The four conditions are implemented as composite perturbation configs.
-    # Since run_experiment handles one perturbation_type at a time,
-    # we use custom hooks composition via the 'composite' type.
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size, val_docs=val_docs)
 
-    # For conditions that need multiple perturbation types, we'll
-    # run them through the existing system by using the most distinctive
-    # perturbation and noting the combination.
+    save_results(all_results, os.path.join(os.path.dirname(__file__),
+                 'results', f'experiment6_courage_caution{result_suffix}.json'))
 
-    # (a) cautious/cautious: small noise on gradients (low everywhere)
-    configs.append(ExperimentConfig(
-        name='cautious_cautious',
-        description='Low noise everywhere (cautious position + cautious move)',
-        n_layer=n_layer,
-        num_steps=num_steps,
-        perturbation_type='noisy_gradients',
-        perturbation_params={'noise_std': 0.001},
-        num_reps=num_reps,
-        seed=42,
-    ))
-
-    # (b) cautious/courageous: stable forward, sign-only gradients
-    # This is the predicted winner — maps to "cautious position, courageous moves"
-    configs.append(ExperimentConfig(
-        name='cautious_courageous',
-        description='Stable forward + sign-only gradients (predicted best)',
-        n_layer=n_layer,
-        num_steps=num_steps,
-        perturbation_type='sign_only_gradients',
-        num_reps=num_reps,
-        seed=42,
-    ))
-
-    # (c) courageous/cautious: noisy forward, careful gradients
-    configs.append(ExperimentConfig(
-        name='courageous_cautious',
-        description='Dropout forward + careful gradients',
-        n_layer=n_layer,
-        num_steps=num_steps,
-        perturbation_type='dropout',
-        perturbation_params={'drop_prob': 0.1},
-        num_reps=num_reps,
-        seed=42,
-    ))
-
-    # (d) courageous/courageous: noise everywhere
-    configs.append(ExperimentConfig(
-        name='courageous_courageous',
-        description='Dropout forward + noisy gradients (noise everywhere)',
-        n_layer=n_layer,
-        num_steps=num_steps,
-        perturbation_type='noisy_gradients',
-        perturbation_params={'noise_std': 0.1},
-        num_reps=num_reps,
-        seed=42,
-    ))
-
-    docs, uchars, BOS, vocab_size = load_dataset()
-    all_results = run_sweep(configs, docs, uchars, BOS, vocab_size)
-
-    # Print results
     print("\n" + "=" * 60)
     print("RESULTS: Courage vs. Caution")
     print("=" * 60)
 
-    condition_labels = {
-        'baseline': 'Baseline',
-        'cautious_cautious': '(a) Cautious/Cautious',
-        'cautious_courageous': '(b) Cautious/Courageous *',
-        'courageous_cautious': '(c) Courageous/Cautious',
-        'courageous_courageous': '(d) Courageous/Courageous',
-    }
+    condition_names = ['baseline', 'cautious_cautious', 'cautious_courageous',
+                       'courageous_cautious', 'courageous_courageous']
 
-    print(f"\n{'Condition':>30} {'Mean Loss':>10} {'Mean DG':>8}")
-    print("-" * 52)
+    print(f"\n{'Condition':>25} {'Mean Loss':>10} {'Mean DG':>8}")
+    print("-" * 47)
 
-    for name in ['baseline', 'cautious_cautious', 'cautious_courageous',
-                  'courageous_cautious', 'courageous_courageous']:
+    for name in condition_names:
         group = [r for r in all_results if r['config'].name == name]
         if not group:
             continue
@@ -1060,147 +914,768 @@ def experiment_courage_caution(num_reps=5, num_steps=200, n_layer=4):
         dgs = [r['summary']['dg_index'] for r in group]
         mean_l = sum(losses) / len(losses)
         mean_dg = sum(dgs) / len(dgs)
-        label = condition_labels.get(name, name)
-        print(f"{label:>30} {mean_l:>10.4f} {mean_dg:>8.3f}")
+        print(f"{name:>25} {mean_l:>10.4f} {mean_dg:>8.3f}")
 
-    print("\n  * = predicted best (paralleling chess paper's 'cautious position, courageous moves')")
-
-    # Swarming index
+    # Swarming index for composite analysis
     print("\n--- Swarming Index (chess-paper metric) ---")
-    for name in ['baseline', 'cautious_cautious', 'cautious_courageous',
-                  'courageous_cautious', 'courageous_courageous']:
+    for name in condition_names:
         group = [r for r in all_results if r['config'].name == name]
         if group and group[0]['probe'].head_outputs:
             si = swarming_index(group[0]['probe'])
-            label = condition_labels.get(name, name)
-            print(f"  {label:>30}: ratio={si['swarming_ratio']:.3f}")
+            print(f"  {name:>25}: swarm={si['swarming_ratio']:.4f}")
 
     return all_results
 
 
 # ============================================================================
-# Save results
+# Experiment 7: Recovery After Damage
 # ============================================================================
 
-def save_results(results, path):
-    """Save experiment results to a JSON file, including trajectory data."""
-    os.makedirs(os.path.dirname(path) if os.path.dirname(path) else '.', exist_ok=True)
+def experiment_recovery(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test whether a model recovers after transient damage, and whether it overshoots.
 
-    t_save = time.time()
-    serializable = []
-    for r in results:
-        probe = r['probe']
-        entry = {
-            'name': r['config'].name,
-            'description': r['config'].description,
-            'seed': r['config'].seed,
-            'perturbation_type': r['config'].perturbation_type,
-            'perturbation_params': r['config'].perturbation_params,
-            'summary': {k: v for k, v in r['summary'].items()
-                        if not isinstance(v, list) or k == 'frozen_heads'},
-            'elapsed': r['elapsed'],
+    Phase 1: Normal training (num_steps steps)
+    Phase 2: Damage — freeze 8 heads (num_steps//2 steps)
+    Phase 3: Recovery — unfreeze all (num_steps steps)
+    Control: Undamaged training for the same total duration
+    """
+    print("=" * 60)
+    print("EXPERIMENT 7: Recovery After Damage")
+    print("=" * 60)
+
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    phase1_steps = num_steps
+    phase2_steps = num_steps // 2
+    phase3_steps = num_steps
+    total = phase1_steps + phase2_steps + phase3_steps
+    num_freeze = 8
+
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+
+        # --- Recovery condition ---
+        sd, params = init_state_dict(config, seed=seed)
+        tc1 = TrainConfig(num_steps=phase1_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+
+        # Phase 1: Normal training
+        p1, m, v = train_with_state(
+            sd, params, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+
+        pre_damage_loss = p1.losses[-1][1] if p1.losses else 0
+
+        # Phase 2: Damage (freeze 8 heads via gradient zeroing)
+        rng = random.Random(seed + 1000)
+        all_heads = [(li, h) for li in range(n_layer) for h in range(4)]
+        rng.shuffle(all_heads)
+        _, freeze_gh = freeze_specific_heads(all_heads[:num_freeze], config)
+
+        tc2 = TrainConfig(num_steps=phase2_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p2, m, v = train_with_state(
+            sd, params, config, tc2, docs, uchars, BOS,
+            grad_hooks=freeze_gh, seed=seed, m_buf=m, v_buf=v,
+            start_step=phase1_steps, total_steps=total)
+
+        # Phase 3: Recovery (no freeze grad hooks)
+        tc3 = TrainConfig(num_steps=phase3_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p3, m, v = train_with_state(
+            sd, params, config, tc3, docs, uchars, BOS,
+            seed=seed, m_buf=m, v_buf=v,
+            start_step=phase1_steps + phase2_steps, total_steps=total)
+
+        # Combine trajectory
+        recovery_traj = p1.losses + p2.losses + p3.losses
+
+        # --- Control: undamaged ---
+        sd_c, params_c = init_state_dict(config, seed=seed)
+        tc_c = TrainConfig(num_steps=total, learning_rate=0.01,
+                           print_every=0, detail_level='loss_only')
+        p_c, _, _ = train_with_state(
+            sd_c, params_c, config, tc_c, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+        control_traj = p_c.losses
+
+        # Metrics
+        damage_end = phase1_steps + phase2_steps
+        rec_metrics = recovery_overshoot(control_traj, recovery_traj, damage_end)
+        rec_final = recovery_traj[-1][1] if recovery_traj else 0
+        ctrl_final = control_traj[-1][1] if control_traj else 0
+
+        result = {
+            'seed': seed,
+            'recovery_final_loss': float(rec_final),
+            'control_final_loss': float(ctrl_final),
+            'pre_damage_loss': float(pre_damage_loss),
+            'recovery_time': rec_metrics['recovery_time'],
+            'overshoot': float(rec_metrics['overshoot']),
+            'max_overshoot': float(rec_metrics['max_overshoot']),
+            'final_ratio': float(rec_metrics['final_ratio']),
         }
-        if r['config'].save_trajectory:
-            entry['loss_trajectory'] = probe.get_loss_values()
+        all_results.append(result)
+        print(f"  recovery={rec_final:.4f} control={ctrl_final:.4f} "
+              f"ratio={rec_metrics['final_ratio']:.4f}")
 
-            # Per-head norms over time
-            head_norm_data = {}
-            for (li, hi), entries in probe.head_outputs.items():
-                head_norm_data[f'L{li}H{hi}'] = [
-                    {'step': s, 'norm': n} for s, n in entries
-                ]
-            if head_norm_data:
-                entry['head_norms'] = head_norm_data
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment7_recovery{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
 
-            # Per-head entropies over time
-            head_entropy_data = {}
-            for (li, hi), entries in probe.attention_entropies.items():
-                head_entropy_data[f'L{li}H{hi}'] = [
-                    {'step': s, 'entropy': e} for s, e in entries
-                ]
-            if head_entropy_data:
-                entry['head_entropies'] = head_entropy_data
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Recovery After Damage")
+    print("=" * 60)
 
-            # Phases
-            loss_vals = probe.get_loss_values()
-            from metrics import detect_phases, compute_delayed_gratification
-            entry['phases'] = detect_phases(loss_vals)
-            entry['dg_episodes'] = compute_delayed_gratification(loss_vals)
+    rec_finals = [r['recovery_final_loss'] for r in all_results]
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    ratios = [r['final_ratio'] for r in all_results]
+    rec_times = [r['recovery_time'] for r in all_results
+                 if r['recovery_time'] is not None]
 
-        if r['samples']:
-            entry['samples'] = r['samples']
-        serializable.append(entry)
-
-    print(f"  [timing] save_results build: {time.time() - t_save:.1f}s"); t_ser = time.time()
-
-    with open(path, 'w') as f:
-        json.dump(serializable, f, indent=2, default=str)
-
-    print(f"  [timing] save_results json write: {time.time() - t_ser:.1f}s")
-    print(f"\nResults saved to {path}")
-
-
-# ============================================================================
-# Main
-# ============================================================================
-
-if __name__ == '__main__':
-    import sys
-
-    experiment = sys.argv[1] if len(sys.argv) > 1 else 'head_freezing'
-    num_reps = int(sys.argv[2]) if len(sys.argv) > 2 else 3
-    num_steps = int(sys.argv[3]) if len(sys.argv) > 3 else 200
-
-    print(f"Running experiment: {experiment}")
-    print(f"  reps={num_reps}, steps={num_steps}")
-
-    os.makedirs('results', exist_ok=True)
-
-    if experiment == 'head_freezing':
-        results = experiment_head_freezing(num_reps=num_reps, num_steps=num_steps)
-        save_results(results['all_results'], 'results/head_freezing.json')
-
-    elif experiment == 'cell_view':
-        results = experiment_cell_view(num_reps=num_reps, num_steps=num_steps)
-        save_results(results, 'results/cell_view.json')
-
-    elif experiment == 'gradient_degradation':
-        results = experiment_gradient_degradation(num_reps=num_reps, num_steps=num_steps)
-        save_results(results, 'results/gradient_degradation.json')
-
-    elif experiment == 'vision_radius':
-        results = experiment_vision_radius(num_reps=num_reps, num_steps=num_steps)
-        save_results(results['all_results'], 'results/vision_radius.json')
-
-    elif experiment == 'communication_topology':
-        results = experiment_communication_topology(num_reps=num_reps, num_steps=num_steps)
-        save_results(results, 'results/communication_topology.json')
-
-    elif experiment == 'courage_caution':
-        results = experiment_courage_caution(num_reps=num_reps, num_steps=num_steps)
-        save_results(results, 'results/courage_caution.json')
-
-    elif experiment == 'all':
-        r1 = experiment_head_freezing(num_reps=num_reps, num_steps=num_steps)
-        save_results(r1['all_results'], 'results/head_freezing.json')
-
-        r2 = experiment_cell_view(num_reps=num_reps, num_steps=num_steps)
-        save_results(r2, 'results/cell_view.json')
-
-        r3 = experiment_gradient_degradation(num_reps=num_reps, num_steps=num_steps)
-        save_results(r3, 'results/gradient_degradation.json')
-
-        r4 = experiment_vision_radius(num_reps=num_reps, num_steps=num_steps)
-        save_results(r4['all_results'], 'results/vision_radius.json')
-
-        r5 = experiment_communication_topology(num_reps=num_reps, num_steps=num_steps)
-        save_results(r5, 'results/communication_topology.json')
-
-        r6 = experiment_courage_caution(num_reps=num_reps, num_steps=num_steps)
-        save_results(r6, 'results/courage_caution.json')
-
+    print(f"  Recovery final:  {np.mean(rec_finals):.4f} +/- {np.std(rec_finals):.4f}")
+    print(f"  Control final:   {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+    print(f"  Final ratio:     {np.mean(ratios):.4f}")
+    if rec_times:
+        print(f"  Recovery time:   {np.mean(rec_times):.0f} +/- {np.std(rec_times):.0f} steps "
+              f"({len(rec_times)}/{num_reps} recovered)")
     else:
-        print(f"Unknown experiment: {experiment}")
-        print("Available: head_freezing, cell_view, gradient_degradation, "
-              "vision_radius, communication_topology, courage_caution, all")
-        sys.exit(1)
+        print(f"  No runs recovered to baseline level")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 8: Chimera Assembly
+# ============================================================================
+
+def experiment_chimera(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Can a model assembled from parts of two separately-trained models learn?
+
+    Train model A and model B independently for num_steps steps.
+    Create chimeras with different layer assignments.
+    Continue training each chimera for num_steps steps.
+    """
+    print("=" * 60)
+    print("EXPERIMENT 8: Chimera Assembly")
+    print("=" * 60)
+
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    # Layer assignments for chimeras (for 4 layers)
+    assignments = {
+        'AABB': {0: 'A', 1: 'A', 2: 'B', 3: 'B'},
+        'ABAB': {0: 'A', 1: 'B', 2: 'A', 3: 'B'},
+        'BBAA': {0: 'B', 1: 'B', 2: 'A', 3: 'A'},
+        'ABBA': {0: 'A', 1: 'B', 2: 'B', 3: 'A'},
+    }
+
+    all_results = []
+
+    for rep in range(num_reps):
+        seed_a = 42 + rep
+        seed_b = 1042 + rep
+        print(f"\n[{rep+1}/{num_reps}] seeds=({seed_a}, {seed_b})")
+
+        # Train model A
+        sd_a, params_a = init_state_dict(config, seed=seed_a)
+        tc = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                         print_every=0, detail_level='loss_only')
+        p_a, _, _ = train_with_state(
+            sd_a, params_a, config, tc, docs, uchars, BOS,
+            seed=seed_a, total_steps=num_steps * 2)
+
+        a_phase1_loss = p_a.losses[-1][1] if p_a.losses else 0
+
+        # Train model B
+        sd_b, params_b = init_state_dict(config, seed=seed_b)
+        p_b, _, _ = train_with_state(
+            sd_b, params_b, config, tc, docs, uchars, BOS,
+            seed=seed_b, total_steps=num_steps * 2)
+
+        b_phase1_loss = p_b.losses[-1][1] if p_b.losses else 0
+
+        # Control: model A continues training
+        sd_ctrl = copy_state_dict(sd_a)
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params_a, config, tc2, docs, uchars, BOS,
+            seed=seed_a, start_step=num_steps, total_steps=num_steps * 2)
+
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        # Create and train chimeras
+        rep_result = {
+            'seed_a': seed_a, 'seed_b': seed_b,
+            'a_phase1_loss': float(a_phase1_loss),
+            'b_phase1_loss': float(b_phase1_loss),
+            'control_final_loss': float(ctrl_final),
+            'chimeras': {},
+        }
+
+        for name, assignment in assignments.items():
+            sd_chi = assemble_chimera(sd_a, sd_b, assignment, config)
+
+            # Measure initial chimera loss
+            tokens = tokenize(docs[0], uchars, BOS)
+            n = min(config['block_size'], len(tokens) - 1)
+            init_loss, _, _, _ = _forward_backward(
+                tokens, n, sd_chi, config, Hooks(), capture_state=False)
+
+            # Train chimera
+            tc_chi = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                                 print_every=0, detail_level='loss_only')
+            p_chi, _, _ = train_with_state(
+                sd_chi, params_a, config, tc_chi, docs, uchars, BOS,
+                seed=seed_a, start_step=num_steps, total_steps=num_steps * 2)
+
+            chi_final = p_chi.losses[-1][1] if p_chi.losses else 0
+
+            rep_result['chimeras'][name] = {
+                'initial_loss': float(init_loss),
+                'final_loss': float(chi_final),
+                'recovery': float((init_loss - chi_final) / max(init_loss, 1e-10)),
+            }
+            print(f"  {name}: init={init_loss:.4f} final={chi_final:.4f}")
+
+        all_results.append(rep_result)
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment8_chimera{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Chimera Assembly")
+    print("=" * 60)
+
+    ctrl_losses = [r['control_final_loss'] for r in all_results]
+    print(f"  Control (A continues): {np.mean(ctrl_losses):.4f} +/- {np.std(ctrl_losses):.4f}")
+
+    for name in assignments:
+        chi_inits = [r['chimeras'][name]['initial_loss'] for r in all_results]
+        chi_finals = [r['chimeras'][name]['final_loss'] for r in all_results]
+        recoveries = [r['chimeras'][name]['recovery'] for r in all_results]
+        print(f"  {name}: init={np.mean(chi_inits):.4f} "
+              f"final={np.mean(chi_finals):.4f}+/-{np.std(chi_finals):.4f} "
+              f"recovery={np.mean(recoveries)*100:.1f}%")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 9: Gradual vs Sudden Damage
+# ============================================================================
+
+def experiment_gradual_vs_sudden(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Does gradual damage exposure build tolerance compared to sudden damage?
+
+    Condition A: No noise (control)
+    Condition B: Sudden noise sigma=0.1 for all steps
+    Condition C: Gradual ramp from sigma=0 to sigma=0.1 over all steps
+    Condition D: Noise only in second half (sudden onset at step num_steps//2)
+    """
+    print("=" * 60)
+    print("EXPERIMENT 9: Gradual vs Sudden Damage")
+    print("=" * 60)
+
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    noise_std = 0.1
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+        rep_result = {'seed': seed, 'conditions': {}}
+
+        tc = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                         print_every=0, detail_level='loss_only')
+
+        # A: Control (no noise)
+        sd_a, params_a = init_state_dict(config, seed=seed)
+        p_a, _, _ = train_with_state(
+            sd_a, params_a, config, tc, docs, uchars, BOS,
+            seed=seed, total_steps=num_steps)
+        rep_result['conditions']['control'] = {
+            'final_loss': float(p_a.losses[-1][1]) if p_a.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_a.losses])),
+        }
+
+        # B: Sudden noise (all steps)
+        sd_b, params_b = init_state_dict(config, seed=seed)
+        gh_b = [make_noisy_gradients(noise_std,
+                rng=np.random.RandomState(seed + 7000))]
+        p_b, _, _ = train_with_state(
+            sd_b, params_b, config, tc, docs, uchars, BOS,
+            grad_hooks=gh_b, seed=seed, total_steps=num_steps)
+        rep_result['conditions']['sudden_full'] = {
+            'final_loss': float(p_b.losses[-1][1]) if p_b.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_b.losses])),
+        }
+
+        # C: Gradual ramp
+        sd_c, params_c = init_state_dict(config, seed=seed)
+        gh_c = [make_gradual_noisy_gradients(noise_std, num_steps,
+                rng=np.random.RandomState(seed + 7000))]
+        p_c, _, _ = train_with_state(
+            sd_c, params_c, config, tc, docs, uchars, BOS,
+            grad_hooks=gh_c, seed=seed, total_steps=num_steps)
+        rep_result['conditions']['gradual'] = {
+            'final_loss': float(p_c.losses[-1][1]) if p_c.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_c.losses])),
+        }
+
+        # D: Sudden onset at halfway
+        sd_d, params_d = init_state_dict(config, seed=seed)
+        gh_d = [make_noisy_gradients_scheduled(noise_std, start_step=num_steps // 2,
+                rng=np.random.RandomState(seed + 7000))]
+        p_d, _, _ = train_with_state(
+            sd_d, params_d, config, tc, docs, uchars, BOS,
+            grad_hooks=gh_d, seed=seed, total_steps=num_steps)
+        rep_result['conditions']['sudden_half'] = {
+            'final_loss': float(p_d.losses[-1][1]) if p_d.losses else 0,
+            'mean_loss': float(np.mean([l for _, l in p_d.losses])),
+        }
+
+        all_results.append(rep_result)
+        for name, data in rep_result['conditions'].items():
+            print(f"  {name:15s}: final={data['final_loss']:.4f}")
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment9_gradual_vs_sudden{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Gradual vs Sudden Damage")
+    print("=" * 60)
+
+    for cond_name in ['control', 'sudden_full', 'gradual', 'sudden_half']:
+        finals = [r['conditions'][cond_name]['final_loss'] for r in all_results]
+        means = [r['conditions'][cond_name]['mean_loss'] for r in all_results]
+        print(f"  {cond_name:15s}: final={np.mean(finals):.4f}+/-{np.std(finals):.4f}  "
+              f"mean={np.mean(means):.4f}+/-{np.std(means):.4f}")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 10: Regeneration (Layer Reset)
+# ============================================================================
+
+def experiment_regeneration(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Can a model regenerate after a layer is destroyed?
+
+    Phase 1: Normal training (num_steps steps)
+    Phase 2: Reset layer L to random, continue training (num_steps steps)
+    Control: No reset, continue training
+    Test layers: 0 (early), 1 (mid-early), 2 (mid-late), 3 (late)
+    """
+    print("=" * 60)
+    print("EXPERIMENT 10: Regeneration (Layer Reset)")
+    print("=" * 60)
+
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    total = num_steps * 2
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+
+        # Phase 1: Train baseline
+        sd_base, params = init_state_dict(config, seed=seed)
+        tc1 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p1, m_base, v_base = train_with_state(
+            sd_base, params, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+
+        pre_reset_loss = p1.losses[-1][1] if p1.losses else 0
+
+        # Control: continue without reset
+        sd_ctrl = copy_state_dict(sd_base)
+        m_ctrl = {k: v.copy() for k, v in m_base.items()}
+        v_ctrl = {k: v.copy() for k, v in v_base.items()}
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params, config, tc2, docs, uchars, BOS,
+            seed=seed, m_buf=m_ctrl, v_buf=v_ctrl,
+            start_step=num_steps, total_steps=total)
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        rep_result = {
+            'seed': seed,
+            'pre_reset_loss': float(pre_reset_loss),
+            'control_final_loss': float(ctrl_final),
+            'layers': {},
+        }
+
+        # Test each layer
+        for li in range(n_layer):
+            sd_reset = copy_state_dict(sd_base)
+            m_reset = {k: v.copy() for k, v in m_base.items()}
+            v_reset = {k: v.copy() for k, v in v_base.items()}
+
+            # Reset layer li
+            reset_layer(sd_reset, li, config, seed=seed + li * 100,
+                        m_buf=m_reset, v_buf=v_reset)
+
+            # Measure immediate post-reset loss
+            tokens = tokenize(docs[0], uchars, BOS)
+            n = min(config['block_size'], len(tokens) - 1)
+            post_reset_loss, _, _, _ = _forward_backward(
+                tokens, n, sd_reset, config, Hooks(), capture_state=False)
+
+            # Continue training
+            p_regen, _, _ = train_with_state(
+                sd_reset, params, config, tc2, docs, uchars, BOS,
+                seed=seed, m_buf=m_reset, v_buf=v_reset,
+                start_step=num_steps, total_steps=total)
+            regen_final = p_regen.losses[-1][1] if p_regen.losses else 0
+
+            # Regeneration metrics
+            baseline_traj = p_ctrl.losses
+            regen_traj = p_regen.losses
+            regen_metrics = regeneration_completeness(
+                pre_reset_loss, regen_traj, baseline_traj, num_steps)
+
+            rep_result['layers'][str(li)] = {
+                'post_reset_loss': float(post_reset_loss),
+                'regen_final_loss': float(regen_final),
+                'completeness': float(regen_metrics['completeness']),
+                'damage': float(post_reset_loss - pre_reset_loss),
+            }
+            print(f"  L{li}: post_reset={post_reset_loss:.4f} "
+                  f"final={regen_final:.4f} "
+                  f"completeness={regen_metrics['completeness']:.3f}")
+
+        all_results.append(rep_result)
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment10_regeneration{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Regeneration (Layer Reset)")
+    print("=" * 60)
+
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    print(f"  Control final: {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+
+    for li in range(n_layer):
+        damages = [r['layers'][str(li)]['damage'] for r in all_results]
+        finals = [r['layers'][str(li)]['regen_final_loss'] for r in all_results]
+        comps = [r['layers'][str(li)]['completeness'] for r in all_results]
+        print(f"  Layer {li}: damage={np.mean(damages):.4f} "
+              f"final={np.mean(finals):.4f}+/-{np.std(finals):.4f} "
+              f"completeness={np.mean(comps):.3f}")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 11: Transplantation
+# ============================================================================
+
+def experiment_transplantation(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Is a transplanted layer accepted better than a random reset?
+
+    Train model A and model B for num_steps steps.
+    For each layer L:
+      - Transplant: replace layer L of A with layer L of B, continue training
+      - Random: reset layer L of A to random, continue training
+      - Control: A continues without modification
+    """
+    print("=" * 60)
+    print("EXPERIMENT 11: Transplantation")
+    print("=" * 60)
+
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    total = num_steps * 2
+    all_results = []
+
+    for rep in range(num_reps):
+        seed_a = 42 + rep
+        seed_b = 1042 + rep
+        print(f"\n[{rep+1}/{num_reps}] seeds=({seed_a}, {seed_b})")
+
+        # Train model A
+        sd_a, params_a = init_state_dict(config, seed=seed_a)
+        tc1 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_a, m_a, v_a = train_with_state(
+            sd_a, params_a, config, tc1, docs, uchars, BOS,
+            seed=seed_a, total_steps=total)
+
+        # Train model B
+        sd_b, params_b = init_state_dict(config, seed=seed_b)
+        p_b, _, _ = train_with_state(
+            sd_b, params_b, config, tc1, docs, uchars, BOS,
+            seed=seed_b, total_steps=total)
+
+        a_loss = p_a.losses[-1][1] if p_a.losses else 0
+
+        # Control: A continues
+        sd_ctrl = copy_state_dict(sd_a)
+        m_ctrl = {k: v.copy() for k, v in m_a.items()}
+        v_ctrl = {k: v.copy() for k, v in v_a.items()}
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params_a, config, tc2, docs, uchars, BOS,
+            seed=seed_a, m_buf=m_ctrl, v_buf=v_ctrl,
+            start_step=num_steps, total_steps=total)
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        rep_result = {
+            'seed_a': seed_a, 'seed_b': seed_b,
+            'a_loss_at_transplant': float(a_loss),
+            'control_final_loss': float(ctrl_final),
+            'layers': {},
+        }
+
+        for li in range(n_layer):
+            # Transplant condition
+            sd_trans = copy_state_dict(sd_a)
+            m_trans = {k: v.copy() for k, v in m_a.items()}
+            v_trans = {k: v.copy() for k, v in v_a.items()}
+            transplant_layer(sd_trans, sd_b, li, m_buf=m_trans, v_buf=v_trans)
+
+            p_trans, _, _ = train_with_state(
+                sd_trans, params_a, config, tc2, docs, uchars, BOS,
+                seed=seed_a, m_buf=m_trans, v_buf=v_trans,
+                start_step=num_steps, total_steps=total)
+            trans_final = p_trans.losses[-1][1] if p_trans.losses else 0
+
+            # Random reset condition
+            sd_rand = copy_state_dict(sd_a)
+            m_rand = {k: v.copy() for k, v in m_a.items()}
+            v_rand = {k: v.copy() for k, v in v_a.items()}
+            reset_layer(sd_rand, li, config, seed=seed_a + li * 100,
+                        m_buf=m_rand, v_buf=v_rand)
+
+            p_rand, _, _ = train_with_state(
+                sd_rand, params_a, config, tc2, docs, uchars, BOS,
+                seed=seed_a, m_buf=m_rand, v_buf=v_rand,
+                start_step=num_steps, total_steps=total)
+            rand_final = p_rand.losses[-1][1] if p_rand.losses else 0
+
+            # Metrics
+            ta = transplant_advantage(trans_final, rand_final, ctrl_final)
+
+            rep_result['layers'][str(li)] = {
+                'transplant_final': float(trans_final),
+                'random_final': float(rand_final),
+                'transplant_gap': float(ta['transplant_gap']),
+                'transplant_vs_baseline': float(ta['transplant_vs_baseline']),
+                'random_vs_baseline': float(ta['random_vs_baseline']),
+            }
+            print(f"  L{li}: trans={trans_final:.4f} rand={rand_final:.4f} "
+                  f"gap={ta['transplant_gap']:.4f}")
+
+        all_results.append(rep_result)
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment11_transplantation{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Transplantation")
+    print("=" * 60)
+
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    print(f"  Control final: {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+
+    for li in range(n_layer):
+        trans_finals = [r['layers'][str(li)]['transplant_final'] for r in all_results]
+        rand_finals = [r['layers'][str(li)]['random_final'] for r in all_results]
+        gaps = [r['layers'][str(li)]['transplant_gap'] for r in all_results]
+        print(f"  Layer {li}: transplant={np.mean(trans_finals):.4f} "
+              f"random={np.mean(rand_finals):.4f} "
+              f"gap={np.mean(gaps):.4f}+/-{np.std(gaps):.4f}")
+
+    return all_results
+
+
+# ============================================================================
+# Experiment 12: Competing Objectives
+# ============================================================================
+
+def experiment_competing_objectives(num_reps=5, num_steps=200, n_layer=4, result_suffix=''):
+    """
+    Test: Can layers specialize when facing conflicting gradient signals?
+
+    Phase 1: Normal training (num_steps steps)
+    Phase 2: Layers 0-1 get normal gradients, layers 2-3 get negated gradients
+             (num_steps steps)
+    Control: Normal training for full duration
+
+    Measures whether early layers compensate for adversarial late layers.
+    """
+    print("=" * 60)
+    print("EXPERIMENT 12: Competing Objectives")
+    print("=" * 60)
+
+    docs, val_docs, uchars, BOS, vocab_size = load_dataset()
+    config = make_config(n_layer=n_layer, n_embd=16, n_head=4,
+                         block_size=16, vocab_size=vocab_size)
+
+    total = num_steps * 2
+    layer_comps = ['attn_wq', 'attn_wk', 'attn_wv', 'attn_wo', 'mlp_fc1', 'mlp_fc2']
+
+    all_results = []
+
+    for rep in range(num_reps):
+        seed = 42 + rep
+        print(f"\n[{rep+1}/{num_reps}] seed={seed}")
+
+        # --- Control: full normal training ---
+        sd_ctrl, params_ctrl = init_state_dict(config, seed=seed)
+        tc_full = TrainConfig(num_steps=total, learning_rate=0.01,
+                              print_every=0, detail_level='loss_only')
+        p_ctrl, _, _ = train_with_state(
+            sd_ctrl, params_ctrl, config, tc_full, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+        ctrl_final = p_ctrl.losses[-1][1] if p_ctrl.losses else 0
+
+        # --- Competing condition ---
+        sd, params = init_state_dict(config, seed=seed)
+        tc1 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+
+        # Phase 1: Normal training
+        p1, m, v = train_with_state(
+            sd, params, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+        phase1_final = p1.losses[-1][1] if p1.losses else 0
+
+        # Phase 2: Adversarial layers 2-3
+        adversarial_layers = [2, 3] if n_layer >= 4 else [n_layer - 1]
+
+        def make_negate_hook(adv_layers):
+            def negate_layers_hook(grads, state_dict, step):
+                for li in adv_layers:
+                    for comp in layer_comps:
+                        key = f'layer{li}.{comp}'
+                        if key in grads:
+                            grads[key] = -grads[key]
+            return negate_layers_hook
+
+        tc2 = TrainConfig(num_steps=num_steps, learning_rate=0.01,
+                          print_every=0, detail_level='loss_only')
+        p2, _, _ = train_with_state(
+            sd, params, config, tc2, docs, uchars, BOS,
+            grad_hooks=[make_negate_hook(adversarial_layers)], seed=seed,
+            m_buf=m, v_buf=v,
+            start_step=num_steps, total_steps=total)
+        compete_final = p2.losses[-1][1] if p2.losses else 0
+
+        # --- Freeze-adversarial condition (freeze layers 2-3 instead) ---
+        sd_f, params_f = init_state_dict(config, seed=seed)
+        p_f1, m_f, v_f = train_with_state(
+            sd_f, params_f, config, tc1, docs, uchars, BOS,
+            seed=seed, total_steps=total)
+
+        def make_freeze_hook(freeze_layers):
+            def freeze_layers_hook(grads, state_dict, step):
+                for li in freeze_layers:
+                    for comp in layer_comps:
+                        key = f'layer{li}.{comp}'
+                        if key in grads:
+                            grads[key][:] = 0
+            return freeze_layers_hook
+
+        p_f2, _, _ = train_with_state(
+            sd_f, params_f, config, tc2, docs, uchars, BOS,
+            grad_hooks=[make_freeze_hook(adversarial_layers)], seed=seed,
+            m_buf=m_f, v_buf=v_f,
+            start_step=num_steps, total_steps=total)
+        freeze_final = p_f2.losses[-1][1] if p_f2.losses else 0
+
+        result = {
+            'seed': seed,
+            'control_final_loss': float(ctrl_final),
+            'phase1_final_loss': float(phase1_final),
+            'competing_final_loss': float(compete_final),
+            'freeze_final_loss': float(freeze_final),
+            'compete_vs_control': float((compete_final - ctrl_final) / max(ctrl_final, 1e-10) * 100),
+            'freeze_vs_control': float((freeze_final - ctrl_final) / max(ctrl_final, 1e-10) * 100),
+        }
+        all_results.append(result)
+        print(f"  ctrl={ctrl_final:.4f} compete={compete_final:.4f} "
+              f"freeze={freeze_final:.4f}")
+
+    # Save
+    save_path = os.path.join(os.path.dirname(__file__), 'results',
+                             f'experiment12_competing_objectives{result_suffix}.json')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n  Saved {len(all_results)} results to {save_path}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("RESULTS: Competing Objectives")
+    print("=" * 60)
+
+    ctrl_finals = [r['control_final_loss'] for r in all_results]
+    compete_finals = [r['competing_final_loss'] for r in all_results]
+    freeze_finals = [r['freeze_final_loss'] for r in all_results]
+
+    print(f"  Control:     {np.mean(ctrl_finals):.4f} +/- {np.std(ctrl_finals):.4f}")
+    print(f"  Competing:   {np.mean(compete_finals):.4f} +/- {np.std(compete_finals):.4f}")
+    print(f"  Freeze L2-3: {np.mean(freeze_finals):.4f} +/- {np.std(freeze_finals):.4f}")
+
+    compete_pct = [r['compete_vs_control'] for r in all_results]
+    freeze_pct = [r['freeze_vs_control'] for r in all_results]
+    print(f"  Competing vs control: {np.mean(compete_pct):+.1f}%")
+    print(f"  Freeze vs control:    {np.mean(freeze_pct):+.1f}%")
+
+    return all_results

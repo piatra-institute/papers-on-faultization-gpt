@@ -166,15 +166,11 @@ tar -czf "$TARBALL" \
     --exclude='.git' \
     -C "$REPO_ROOT" \
     run.py \
+    model.py \
     experiments.py \
-    experiments_np.py \
-    morphogpt.py \
-    morphogpt_np.py \
     perturbations.py \
-    perturbations_np.py \
     metrics.py \
     visualize.py \
-    microgpt.py \
     scripts/runpod_run.sh
 echo "   Tarball: $(du -h "$TARBALL" | cut -f1)"
 

@@ -115,35 +115,28 @@ uv run --script analyze_stats.py all     # Analyze all 12 experiments
 ## Project Structure
 
 ```
-morphogpt/
-├── run.py                    # CLI dispatcher
-├── morphogpt_np.py           # Core GPT model (numpy backend, primary)
-├── experiments_np.py         # 12 experiment functions with result_suffix parameter
-├── perturbations_np.py       # All perturbation hooks (freeze, noise, stop-gradient, etc.)
-├── metrics.py                # DG index, robustness curves, statistical metrics
+on-faultization-gpt/
+├── run.py                    # CLI entry point
+├── model.py                  # Core GPT model (numpy)
+├── experiments.py            # 12 experiment functions
+├── perturbations.py          # Perturbation hooks
+├── metrics.py                # Statistical metrics
 ├── visualize.py              # Plotting
-├── analyze_stats.py          # Paired t-tests and summary tables for all experiments
-├── test_perturbation_semantics.py  # Perturbation semantic tests
-├── morphogpt.py              # Legacy scalar autograd backend
-├── experiments.py            # Legacy experiment runner
-├── perturbations.py          # Legacy perturbation functions
-├── microgpt.py               # Base micrograd GPT implementation
-├── scripts/
-│   ├── runpod_experiments.sh  # Deploy + run on RunPod
-│   ├── runpod_run.sh          # Pod-side runner
-│   ├── run_local.sh           # Local convenience wrapper
-│   └── build-paper.sh         # Generate PDF from PAPER.md
+├── analyze_stats.py          # Paired t-tests
+├── test_perturbation_semantics.py
+├── CLAUDE.md
+├── README.md
+├── .gitignore
 ├── docs/
-│   ├── PAPER.md               # Full paper
-│   ├── FINDINGS.md            # Detailed findings (n=30 with n=300 annotations)
-│   ├── EXPERIMENTS.md         # Experiment summary (n=300 results)
-│   ├── PROJECT_ANALYSIS.md    # Project analysis and corrections
-│   ├── PEER_REVIEW.md         # Code review and issues
-│   ├── ARCHITECTURE.md        # Original design document (historical)
-│   ├── IMPLEMENTATION_NOTES.md # Implementation analysis (early design)
-│   └── MODIFICATIONS.md       # Assumption inventory
-├── data/                      # Dataset (auto-downloaded)
-└── results/                   # JSON result files (n=30 default, _n300 suffix for n=300)
+│   ├── PAPER.md
+│   ├── FINDINGS.md
+│   ├── EXPERIMENTS.md
+│   └── MODIFICATIONS.md
+├── scripts/
+│   └── build-paper.sh
+├── results/
+├── data/
+└── archive/
 ```
 
 
@@ -152,5 +145,4 @@ morphogpt/
 - **`docs/PAPER.md`** — Full paper with three-scale statistical analysis and three-category classification (emergent, basin geometry, tolerance)
 - **`docs/FINDINGS.md`** — Experiment-by-experiment results with paired t-test p-values at n=30, n=300 annotations
 - **`docs/EXPERIMENTS.md`** — Concise experiment summary with n=300 results
-- **`docs/ARCHITECTURE.md`** — Original design document (historical, pre-experiment)
 - **`docs/MODIFICATIONS.md`** — Systematic inventory of 12 assumptions and their violations

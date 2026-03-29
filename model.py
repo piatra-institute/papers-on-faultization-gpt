@@ -654,6 +654,12 @@ def gpt_forward(token_id, pos_id, keys_cache, vals_cache, state_dict, config, ho
 # ============================================================================
 
 def make_config(n_layer=4, n_embd=16, n_head=4, block_size=16, vocab_size=27):
+    assert n_embd % n_head == 0, f'n_embd ({n_embd}) must be divisible by n_head ({n_head})'
+    assert n_layer > 0, f'n_layer must be positive, got {n_layer}'
+    assert block_size > 0, f'block_size must be positive, got {block_size}'
+    assert vocab_size > 0, f'vocab_size must be positive, got {vocab_size}'
+    assert n_head > 0, f'n_head must be positive, got {n_head}'
+    assert n_embd > 0, f'n_embd must be positive, got {n_embd}'
     return {
         'n_layer': n_layer,
         'n_embd': n_embd,
@@ -767,6 +773,10 @@ class TrainConfig:
     num_samples: int = 5
     temperature: float = 0.5
     detail_level: str = 'summary'
+
+    def __post_init__(self):
+        assert self.num_steps > 0, f'num_steps must be positive, got {self.num_steps}'
+        assert self.learning_rate > 0, f'learning_rate must be positive, got {self.learning_rate}'
 
 
 def train(state_dict, params, config, train_config, docs, uchars, BOS,
