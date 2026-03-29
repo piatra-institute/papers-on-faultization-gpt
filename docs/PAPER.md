@@ -10,7 +10,7 @@ date: March 2026
 
 ## Abstract
 
-We apply morphogenetic perturbation methodology (Levin et al., 2024) to a minimal transformer (4-layer, 16-dimensional, 4-head character-level GPT) through twelve experiments spanning perturbation-during-training (Exp 1-6) and multi-phase morphogenetic interventions (Exp 7-12). We adopt a three-scale protocol: $n = 3$ pilot data provides initial signal, $n = 30$ paired analysis ($n = 30$ runs per condition, matched seeds) resolves ambiguity, and $n = 300$ reveals fine structure. At $n = 3$, several signals were ambiguous — head freezing appeared to improve loss, gradient corruption appeared neutral, Delayed Gratification (DG) Index appeared to scale with perturbation. At $n = 30$, the picture sharpens: we identify four emergent behaviors not directly prescribed by Stochastic Gradient Descent (SGD) (stress inoculation, complete recovery, complete regeneration, and head-freezing trajectory improvement), three that reflect basin geometry (chimera convergence, transplant indifference, cell-view equivalent convergence), and three that demonstrate tolerance (gradient degradation absorbed up to a threshold, partial communication, vision restriction). Cell-view (local loss) achieves equivalent final loss to baseline at both $n = 30$ ($p = 0.78$) and $n = 300$ ($p = 0.90$), demonstrating that local layerwise optimization converges to the same basin as end-to-end backpropagation. At $n = 30$, head freezing shows final-loss improvements at some levels (freeze 4: $p = 0.001$, freeze 12: $p = 0.016$), but at $n = 300$ all final-loss effects resolve to null (all $p > 0.15$), while trajectory improvement strengthens to high significance. At $n = 300$, fine structure emerges: the stress inoculation effect strengthens from $p = 0.138$ (final loss) at $n = 30$ to $p = 0.0001$ at $n = 300$ ($d = -0.227$), vision radius reveals a previously invisible monotonic structure (window 1 harms at $p = 0.021$, window 8 improves at $p = 0.022$), regeneration shows layer-specific residual effects, and all robust $n = 30$ findings hold or strengthen while all null findings remain null. The paper's key finding: gradual noise exposure builds tolerance that sudden exposure does not ($p = 0.0001$, $d = -0.227$), despite identical gradient update rules at every step.
+We apply morphogenetic perturbation methodology (Levin et al., 2024) to a minimal transformer (4-layer, 16-dimensional, 4-head character-level GPT) through twelve experiments spanning perturbation-during-training (Exp 1-6) and multi-phase morphogenetic interventions (Exp 7-12). We adopt a three-scale protocol: $n = 3$ pilot data provides initial signal, $n = 30$ paired analysis ($n = 30$ runs per condition, matched seeds) resolves ambiguity, and $n = 300$ reveals fine structure. At $n = 3$, several signals were ambiguous — head freezing appeared to improve loss, gradient corruption appeared neutral, Delayed Gratification (DG) Index appeared to scale with perturbation. At $n = 30$, the picture sharpens: we identify four emergent behaviors not directly prescribed by Stochastic Gradient Descent (SGD) (stress inoculation, complete recovery, complete regeneration, and head-freezing trajectory improvement), three that reflect basin geometry (chimera convergence, transplant indifference, cell-view equivalent convergence), and three that demonstrate tolerance (gradient degradation absorbed up to a threshold, partial communication, vision restriction). Cell-view (local loss) achieves equivalent final loss to baseline at both $n = 30$ ($p = 0.24$) and $n = 300$ ($p = 0.90$), demonstrating that local layerwise optimization converges to the same basin as end-to-end backpropagation. At $n = 30$, head freezing shows final-loss improvements at some levels (freeze 4: $p = 0.001$, freeze 12: $p = 0.016$), but at $n = 300$ all final-loss effects resolve to null (all $p > 0.15$), while trajectory improvement strengthens to high significance. At $n = 300$, fine structure emerges: the stress inoculation effect strengthens from $p = 0.032$ (final loss) at $n = 30$ to $p = 0.0001$ at $n = 300$ ($d = -0.227$), vision radius reveals a previously invisible monotonic structure (window 1 harms at $p = 0.021$, window 8 improves at $p = 0.022$), regeneration shows layer-specific residual effects, and all robust $n = 30$ findings hold or strengthen while all null findings remain null. The paper's key finding: gradual noise exposure builds tolerance that sudden exposure does not ($p = 0.0001$, $d = -0.227$), despite identical gradient update rules at every step.
 
 
 ## 1. Introduction
@@ -27,7 +27,7 @@ Our contributions are:
 
 1. **A twelve-experiment morphogenetic methodology** that applies Levin's perturbation protocol to transformer training across two phases: perturbation during training (Exp 1-6) and multi-phase morphogenetic interventions (Exp 7-12).
 2. **A three-category classification** that distinguishes emergent behaviors (not directly prescribed by the optimizer) from basin geometry (expected convergence on the given landscape) from tolerance (the system absorbs damage without compensating for it).
-3. **The finding that gradual stress builds tolerance** ($p = 0.138$ at $n = 30$, strengthening to $p = 0.0001$ at $n = 300$, $d = -0.227$): the system develops resilience that sudden exposure to identical peak stress does not produce, despite identical gradient update rules at every step.
+3. **The finding that gradual stress builds tolerance** ($p = 0.032$ at $n = 30$, strengthening to $p = 0.0001$ at $n = 300$, $d = -0.227$): the system develops resilience that sudden exposure to identical peak stress does not produce, despite identical gradient update rules at every step.
 4. **A three-scale protocol** that treats $n = 3$ pilot findings as coarse signal, $n = 30$ as resolved signal, and $n = 300$ as fine-structure signal.
 5. **A sharp distinction between absence and adversity.** Frozen (inactive) layers are tolerated ($p = 0.462$); gradient-negated (adversarial) layers degrade by +24.8% ($p < 0.001$).
 6. **A negative result on rerouting.** The Delayed Gratification Index shows no perturbation response at $n = 30$ or $n = 300$, distinguishing transformer perturbation response from the richer compensatory rerouting observed in biological development.
@@ -39,11 +39,11 @@ Our findings intersect several established lines of research. We situate each fi
 
 **Pruning and the lottery ticket hypothesis.** Frankle & Carlin (2019) showed that trained networks contain sparse subnetworks ("winning tickets") that match full-network performance. Subsequent work extended this to structured pruning of attention heads (Michel et al., 2019; Voita et al., 2019). Our Experiment 1 freezes heads at *random initialization*, not after training — the frozen heads are arbitrary random projections. At $n = 3$, the signal was ambiguous: freezing 8+ heads appeared to improve final loss. At $n = 30$, some final-loss improvements appear significant (freeze 4: $p = 0.001$, freeze 8: $p = 0.023$, freeze 12: $p = 0.016$) alongside a robust mean-trajectory improvement for 4+ frozen heads. At $n = 300$, the final-loss improvements resolve to null (all $p > 0.15$; Spearman $\rho = -0.0045$, $p = 0.84$), but the trajectory improvement strengthens to high significance: freeze 8 ($\Delta = -0.1\%$, $p < 0.0001$, $d = -1.245$), freeze 12 ($\Delta = -0.2\%$, $p < 0.0001$, $d = -1.421$), freeze 16 ($\Delta = -0.2\%$, $p < 0.0001$, $d = -1.312$), confirming that frozen random-projection heads reduce gradient interference.
 
-**SignSGD and low-precision optimization.** Bernstein et al. (2018) established that sign-only gradient updates can match full-precision optimization under appropriate conditions. At $n = 3$, our Experiment 3 signal was ambiguous: gradient degradation appeared neutral. At $n = 30$, the signal resolved clearly: sign-only gradients significantly degrade performance (+5.0% final loss, $p = 0.002$, $d = +0.614$). The discrepancy between our finding and the SignSGD literature may reflect our model's small scale and short training duration. At $n = 300$, this finding strengthens: sign-only gradients degrade by +4.9% ($p < 0.0001$, $d = 0.575$), confirming that the discrepancy with SignSGD is robust and not a small-sample artifact.
+**SignSGD and low-precision optimization.** Bernstein et al. (2018) established that sign-only gradient updates can match full-precision optimization under appropriate conditions. At $n = 3$, our Experiment 3 signal was ambiguous: gradient degradation appeared neutral. At $n = 30$, the signal resolved clearly: sign-only gradients significantly degrade performance (+5.0% final loss, $p = 0.002$, $d = +0.614$), and noisy $\sigma = 0.1$ also degrades (+2.4%, $p = 0.032$). The discrepancy between our finding and the SignSGD literature may reflect our model's small scale and short training duration. At $n = 300$, this finding strengthens: sign-only gradients degrade by +4.9% ($p < 0.0001$, $d = 0.575$), confirming that the discrepancy with SignSGD is robust and not a small-sample artifact.
 
-**Noise as regularization.** The regularizing effect of gradient noise is well-established (Neelakantan et al., 2015). Our Experiment 3 shows that small noise ($\sigma = 0.01$) produces no significant change ($p = 0.738$), consistent with noise-as-regularization, while large noise ($\sigma = 0.1$) is non-significant for final loss at $n = 30$ ($p = 0.910$) but significantly degrades mean trajectory loss (+2.1%, $p < 0.001$, $d = +3.358$), indicating a noise tolerance threshold that manifests primarily in the training trajectory.
+**Noise as regularization.** The regularizing effect of gradient noise is well-established (Neelakantan et al., 2015). Our Experiment 3 shows that small noise ($\sigma = 0.01$) produces no significant change ($p = 0.843$), consistent with noise-as-regularization, while large noise ($\sigma = 0.1$) significantly degrades final loss at $n = 30$ ($+2.4\%$, $p = 0.032$) and strongly degrades mean trajectory loss (+2.4%, $p < 0.001$, $d = +4.306$), indicating a noise tolerance threshold between $\sigma = 0.01$ and $\sigma = 0.1$.
 
-**Local learning rules.** Alternatives to end-to-end backpropagation include greedy layerwise pretraining (Bengio et al., 2007), local learning signals (Nokland & Eidnes, 2019), and forward-forward algorithms (Hinton, 2022). Our cell-view experiment uses local loss (layerwise cross-entropy), eliminating *all* inter-layer gradient flow. The resulting final loss is equivalent to baseline at both $n = 30$ ($+0.1\%$, $p = 0.776$) and $n = 300$ ($-0.0\%$, $p = 0.90$), with only the mean trajectory showing a small cost ($+0.2\%$, $p = 0.005$, $d = +0.556$). Local learning converges to the same basin as end-to-end backpropagation.
+**Local learning rules.** Alternatives to end-to-end backpropagation include greedy layerwise pretraining (Bengio et al., 2007), local learning signals (Nokland & Eidnes, 2019), and forward-forward algorithms (Hinton, 2022). Our cell-view experiment uses local loss (layerwise cross-entropy), eliminating *all* inter-layer gradient flow. The resulting final loss is equivalent to baseline at both $n = 30$ ($-0.9\%$, $p = 0.237$) and $n = 300$ ($-0.0\%$, $p = 0.90$), with the mean trajectory showing a significant cost ($+0.8\%$, $p < 0.001$, $d = +1.302$). Local learning converges to the same basin as end-to-end backpropagation.
 
 **Perturbation analysis in neural networks.** Ablation studies (Meyes et al., 2019), dropout, and pruning are standard tools, but typically measure *component importance*. We use perturbation to characterize *system-level behavioral boundaries* — what the architecture absorbs, what it adapts to, and what degrades it. This distinction connects our work to Levin's morphogenetic framework rather than to standard ablation methodology.
 
@@ -51,7 +51,7 @@ Our findings intersect several established lines of research. We situate each fi
 
 **Stress inoculation.** The phenomenon of gradual stressor exposure building tolerance is well-documented in biology (Meichenbaum, 1985) and metallurgy (work hardening). In deep learning, curriculum learning (Bengio et al., 2009) and noise scheduling in diffusion models provide partial analogs. Our Experiment 9 demonstrates stress inoculation in the gradient noise domain — a finding that connects the noise-as-regularization literature to developmental biology.
 
-**Distributed chess as collective intelligence.** Kofman, Campitelli & Levin (2025) extended the morphogenetic framework to chess with autonomous pieces. Our Experiment 6 uses a proper $2 \times 2$ factorial design with composite perturbations (each cell has both a forward and gradient perturbation). The key finding is that gradient type dominates: sign-only gradients (+5.0--5.2% final loss) degrade far more than noisy $\sigma = 0.1$ gradients (+1.6--2.4%), regardless of forward perturbation type (sign-only $-$ dropout: $-3.0\%$, $p = 0.066$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$). Their information bottleneck finding (intermediate vision radius outperforms omniscience) does not replicate for attention windowing (no significant final-loss effects at $n = 30$).
+**Distributed chess as collective intelligence.** Kofman, Campitelli & Levin (2025) extended the morphogenetic framework to chess with autonomous pieces. Our Experiment 6 uses a proper $2 \times 2$ factorial design with composite perturbations (each cell has both a forward and gradient perturbation). The key finding is that gradient type dominates: sign-only gradients (+5.2--6.5% final loss) degrade far more than noisy $\sigma = 0.1$ gradients (+2.4--2.6%), regardless of forward perturbation type (sign-only $-$ noisy: $-3.8\%$, $p = 0.022$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$). Their information bottleneck finding (intermediate vision radius outperforms omniscience) does not replicate for attention windowing (no significant final-loss effects at $n = 30$).
 
 
 ## 3. Methods
@@ -80,7 +80,7 @@ The choice of a minimal model is deliberate and follows Levin et al.'s rationale
 
 We adopt an explicit three-scale protocol for interpreting findings. At $n = 3$ (pilot scale), signal is visible but resolution is too low to distinguish real effects from sampling noise — findings at this scale are coarse signal, not conclusions. At $n = 30$ (primary scale), paired statistical analysis ($df = 29$) resolves ambiguity: effects that are real at moderate magnitude ($d \geq 0.4$) become detectable with 80% power. At $n = 300$ (fine-structure scale), effects that are small but real at $n = 30$ either strengthen into clear signals or remain null; and new structure that was below the detection threshold at $n = 30$ may emerge.
 
-A finding that is ambiguous at $n = 3$ and resolves clearly at $n = 30$ is not a retraction — it is a finding at the appropriate resolution. A signal that appeared at $n = 3$, resolved to null at $n = 30$, and was confirmed null at $n = 300$ is a signal whose character stabilized as resolution increased; conversely, a signal that was non-significant at $n = 30$ ($p = 0.138$) but strengthened to $p = 0.0001$ at $n = 300$ is a signal whose reality emerged at higher resolution. This is how science works when the resolution dial turns.
+A finding that is ambiguous at $n = 3$ and resolves clearly at $n = 30$ is not a retraction — it is a finding at the appropriate resolution. A signal that appeared at $n = 3$, resolved to null at $n = 30$, and was confirmed null at $n = 300$ is a signal whose character stabilized as resolution increased; conversely, a signal that was significant at $n = 30$ ($p = 0.032$) and strengthened to $p = 0.0001$ at $n = 300$ is a signal whose precision increased at higher resolution. This is how science works when the resolution dial turns.
 
 ### 3.3 Delayed Gratification (DG) Index
 
@@ -264,7 +264,7 @@ The DG Index does not increase with freezing. No freezing level produces a signi
 
 **At $n = 3$:** The signal was ambiguous. Cell-view appeared to elevate DG substantially (+25.5%), suggesting possible rerouting behavior.
 
-**At $n = 30$:** The DG signal resolved to null ($p = 0.90$). The final-loss signal is non-significant: cell-view produces near-identical final loss to baseline ($+0.1\%$, $p = 0.776$, $d = +0.053$). Only the mean trajectory loss shows a small but significant cost ($+0.2\%$, $p = 0.005$, $d = +0.556$).
+**At $n = 30$:** The DG signal resolved to null ($p = 0.61$). The final-loss signal is non-significant: cell-view produces near-identical final loss to baseline ($-0.9\%$, $p = 0.237$, $d = -0.220$). The mean trajectory loss shows a significant cost ($+0.8\%$, $p < 0.001$, $d = +1.302$).
 
 **At $n = 300$:** The final-loss equivalence is confirmed at high power: cell-view final loss $-0.0\%$ ($p = 0.90$, $d = -0.007$). Mean trajectory: $+0.2\%$ ($p < 0.0001$, $d = +0.731$). DG: $p = 0.14$ (ns). Local layerwise optimization converges to the same basin as end-to-end backpropagation, with only a slight trajectory cost.
 
@@ -273,9 +273,9 @@ The DG Index does not increase with freezing. No freezing level produces a signi
 | Condition | Mean Loss | Final Loss | DG Index |
 |:---:|:---:|:---:|:---:|
 | Baseline | 2.627 ± 0.028 | 2.557 ± 0.407 | 0.680 |
-| Cell-view | 2.632 ± 0.027 | 2.559 ± 0.419 | 0.655 |
+| Cell-view | 2.647 ± 0.025 | 2.535 ± 0.384 | 0.568 |
 
-Replacing end-to-end backpropagation with local loss produces equivalent final loss ($+0.1\%$, $p = 0.776$, $d = +0.053$) and a small mean-trajectory cost ($+0.2\%$, $p = 0.005$, $d = +0.556$). The system converges to the same basin without inter-layer gradient flow — the loss landscape guides each layer to its functional role independently.
+Replacing end-to-end backpropagation with local loss produces equivalent final loss ($-0.9\%$, $p = 0.237$, $d = -0.220$) and a significant mean-trajectory cost ($+0.8\%$, $p < 0.001$, $d = +1.302$). The system converges to the same basin without inter-layer gradient flow — the loss landscape guides each layer to its functional role independently.
 
 **Classification:** *Basin geometry* — local loss converges to the same minimum as end-to-end backpropagation, reflecting the smoothness of the loss landscape rather than system tolerance. The DG elevation was noise at this resolution.
 
@@ -283,7 +283,7 @@ Replacing end-to-end backpropagation with local loss produces equivalent final l
 
 **At $n = 3$:** The signal was ambiguous. All four gradient degradation methods appeared neutral ($p > 0.26$), and small noise appeared to help.
 
-**At $n = 30$:** The ambiguous signal resolved. Two of four methods significantly degrade final loss; one is non-significant but degrades the trajectory; one is genuinely tolerated.
+**At $n = 30$:** The ambiguous signal resolved. Three of four methods significantly degrade final loss; one is genuinely tolerated.
 
 **At $n = 300$:** The threshold between tolerance and degradation sharpens. Noise at $\sigma = 0.01$ remains non-significant ($-0.2\%$, $p = 0.28$), confirming genuine tolerance. All three degradation conditions strengthen: noise at $\sigma = 0.1$ (+2.2%, $p < 0.0001$, $d = 0.367$), sign-only (+4.9%, $p < 0.0001$, $d = 0.575$), and quantized 3-level (+3.6%, $p < 0.0001$, $d = 0.529$). The sign-only effect strengthened from $p = 0.002$ at $n = 30$ to $p < 0.0001$ at $n = 300$.
 
@@ -292,12 +292,12 @@ Replacing end-to-end backpropagation with local loss produces equivalent final l
 | Method | Final Loss | Δ% | $p$ (final) | Mean Loss | $p$ (mean) | $d$ (mean) |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | Baseline | 2.557 | — | — | 2.627 | — | — |
-| Noisy ($\sigma = 0.01$) | 2.552 | -0.2% | 0.738 | 2.628 | 0.496 | +0.126 |
-| Noisy ($\sigma = 0.1$) | 2.553 | -0.2% | 0.910 | 2.683 | <0.001*** | +3.358 |
+| Noisy ($\sigma = 0.01$) | 2.560 | +0.1% | 0.843 | 2.628 | 0.333 | +0.180 |
+| Noisy ($\sigma = 0.1$) | 2.618 | +2.4% | 0.032* | 2.690 | <0.001*** | +4.306 |
 | Sign-only | 2.685 | +5.0% | 0.002** | 2.729 | <0.001*** | +5.696 |
 | Quantized (3-bit) | 2.653 | +3.8% | 0.008** | 2.693 | <0.001*** | +4.457 |
 
-Two of four methods significantly degrade final loss: sign-only (+5.0%, $p = 0.002$, $d = +0.614$) and quantized (+3.8%, $p = 0.008$, $d = +0.519$). Noisy $\sigma = 0.1$ is non-significant for final loss ($p = 0.910$) but strongly degrades mean trajectory (+2.1%, $p < 0.001$, $d = +3.358$). Only small noise ($\sigma = 0.01$) is genuinely tolerated ($p = 0.738$ final, $p = 0.496$ mean). Mean loss effects are highly significant for sign-only and quantized ($p < 0.001$) with large Cohen's $d$ values (4.5–5.7). The "noise helps" effect (noisy $\sigma = 0.01$ improving loss) is not supported ($p = 0.496$ for mean loss).
+Three of four methods significantly degrade final loss: sign-only (+5.0%, $p = 0.002$, $d = +0.614$), quantized (+3.8%, $p = 0.008$, $d = +0.519$), and noisy $\sigma = 0.1$ (+2.4%, $p = 0.032$, $d = +0.411$). Noisy $\sigma = 0.1$ also strongly degrades mean trajectory (+2.4%, $p < 0.001$, $d = +4.306$). Only small noise ($\sigma = 0.01$) is genuinely tolerated ($p = 0.843$ final, $p = 0.333$ mean). Mean loss effects are highly significant for sign-only and quantized ($p < 0.001$) with large Cohen's $d$ values (4.5–5.7). The "noise helps" effect (noisy $\sigma = 0.01$ improving loss) is not supported ($p = 0.333$ for mean loss).
 
 **Classification:** *Tolerance* — the system absorbs gradient noise up to a threshold ($\sigma = 0.01$). Above that threshold, degradation follows. The gradient-quality information (sign structure, quantization levels) carries more essential signal than quantity.
 
@@ -330,19 +330,19 @@ No window size significantly changes final loss at $n = 30$ ($p > 0.30$ for all)
 
 **At $n = 30$:** The U-shaped curve resolved to flat across all gradient fractions, including zero communication (cell-view). Partial gradient flow is absorbed without meaningful degradation.
 
-**At $n = 300$:** The architecture's indifference to gradient fraction holds at high power. Heavy ($p = 0.92$), half ($p = 0.033$), and light ($p = 0.59$) communication topologies remain largely non-significant. Cell-view final loss is non-significant ($p = 0.90$), consistent with Experiment 2's finding that local loss achieves equivalent convergence. Only cell-view mean trajectory shows significant cost ($+0.2\%$, $p < 0.0001$, $d = +0.731$).
+**At $n = 300$:** The architecture's indifference to gradient fraction holds at high power. Heavy ($p = 0.92$), half ($p = 0.033$), and light ($p = 0.59$) communication topologies remain largely non-significant. Cell-view final loss is non-significant ($p = 0.90$), consistent with Experiment 2's finding that local loss achieves equivalent convergence. Only cell-view mean trajectory shows significant cost ($+0.8\%$, $p < 0.0001$, $d = +0.731$).
 
 **Table 5.** Communication topology results (means across 30 runs).
 
 | Topology | Fraction | Final Loss | $p$ (final) | Mean Loss | $p$ (mean) |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | Full | 1.00 | 2.557 | — | 2.627 | — |
-| Heavy | 0.75 | 2.553 | 0.048* | 2.627 | 0.934 |
-| Half | 0.50 | 2.555 | 0.510 | 2.627 | 0.452 |
-| Light | 0.25 | 2.555 | 0.494 | 2.627 | 0.470 |
-| Cell-view | 0.00 | 2.559 | 0.776 | 2.632 | 0.005** |
+| Heavy | 0.75 | 2.558 | 0.379 | 2.627 | 0.314 |
+| Half | 0.50 | 2.555 | 0.589 | 2.627 | 0.187 |
+| Light | 0.25 | 2.557 | 0.915 | 2.627 | 0.895 |
+| Cell-view | 0.00 | 2.535 | 0.237 | 2.647 | <0.001*** |
 
-Partial gradient flow (25–75%) produces no meaningful degradation. Heavy (75%) shows a marginal final-loss improvement ($p = 0.048$, $d = -0.377$, $-0.1\%$). Half and light are non-significant. Cell-view (0%) shows equivalent final loss ($+0.1\%$, $p = 0.776$, $d = +0.053$) but slightly elevated mean trajectory loss ($+0.2\%$, $p = 0.005$, $d = +0.556$).
+Partial gradient flow (25–75%) produces no meaningful degradation. Heavy (75%), half (50%), and light (25%) are all non-significant for final loss ($p > 0.37$). Cell-view (0%) shows equivalent final loss ($-0.9\%$, $p = 0.237$, $d = -0.220$) but significantly elevated mean trajectory loss ($+0.8\%$, $p < 0.001$, $d = +1.302$).
 
 **Classification:** *Tolerance* — the system absorbs substantial reductions in inter-layer gradient flow. Even the total removal of inter-layer communication (cell-view/local loss) achieves equivalent final-loss convergence, with only a slight trajectory cost.
 
@@ -352,19 +352,19 @@ Partial gradient flow (25–75%) produces no meaningful degradation. Heavy (75%)
 
 **At $n = 30$:** The $2 \times 2$ factorial design with composite perturbations reveals a clear pattern: gradient type dominates over forward perturbation type.
 
-**At $n = 300$:** The gradient-type dominance is confirmed at high statistical power. All four composite conditions significantly degrade final loss: cautious/cautious ($+5.2\%$, $p < 0.0001$, $d = +0.624$), cautious/courageous ($+1.9\%$, $p < 0.0001$, $d = +0.318$), courageous/cautious ($+5.0\%$, $p < 0.0001$, $d = +0.616$), courageous/courageous ($+2.5\%$, $p < 0.0001$, $d = +0.419$). The sign-only vs. noisy gradient contrast: $-2.9\%$ ($p < 0.0001$, $d = -0.355$).
+**At $n = 300$:** The gradient-type dominance is confirmed at high statistical power. All four composite conditions significantly degrade final loss: cautious/cautious ($+5.2\%$, $p < 0.0001$, $d = +0.624$), cautious/courageous ($+1.9\%$, $p < 0.0001$, $d = +0.318$), courageous/cautious ($+5.0\%$, $p < 0.0001$, $d = +0.616$), courageous/courageous ($+2.5\%$, $p < 0.0001$, $d = +0.419$). The sign-only vs. noisy gradient contrast: $-2.9\%$ ($p < 0.0001$, $d = -0.355$). These n=300 results confirm the pattern already significant at n=30.
 
 **Table 6.** Courage vs. caution results — $2 \times 2$ factorial with composite perturbations (means across 30 runs).
 
 | Condition | Final Loss | $p$ (final) | Mean Loss | $p$ (mean) | $d$ (mean) |
 |:---|:---:|:---:|:---:|:---:|:---:|
 | Baseline | 2.557 | -- | 2.627 | -- | -- |
-| (a) Caut./Caut. (tiny noise + sign-only) | 2.693 | 0.001\*\*\* | 2.728 | <0.001\*\*\* | +6.056 |
-| (b) Caut./Cour. (tiny noise + noisy $\sigma$=0.1) | 2.618 | 0.104 | 2.687 | <0.001\*\*\* | +3.426 |
-| (c) Cour./Caut. (dropout + sign-only) | 2.698 | 0.002\*\* | 2.734 | <0.001\*\*\* | +4.980 |
-| (d) Cour./Cour. (dropout + noisy $\sigma$=0.1) | 2.596 | 0.154 | 2.691 | <0.001\*\*\* | +3.487 |
+| (a) Caut./Caut. (tiny noise + sign-only) | 2.689 | 0.002\*\* | 2.729 | <0.001\*\*\* | +5.935 |
+| (b) Caut./Cour. (tiny noise + noisy $\sigma$=0.1) | 2.619 | 0.032\* | 2.690 | <0.001\*\*\* | +4.309 |
+| (c) Cour./Caut. (dropout + sign-only) | 2.722 | 0.001\*\*\* | 2.730 | <0.001\*\*\* | +5.155 |
+| (d) Cour./Cour. (dropout + noisy $\sigma$=0.1) | 2.622 | 0.035\* | 2.695 | <0.001\*\*\* | +4.479 |
 
-The key finding is that **gradient type dominates**: conditions with sign-only gradients (a, c) degrade final loss by +5.3--5.5%, while conditions with noisy $\sigma = 0.1$ gradients (b, d) degrade by +1.6--2.4%. The forward perturbation type (tiny noise vs. dropout) has a much smaller effect. The sign-only vs. noisy gradient contrast (averaging across forward types) yields $-3.0\%$ final loss ($p = 0.066$, $d = -0.349$ at $n = 30$; $-2.9\%$, $p < 0.0001$, $d = -0.355$ at $n = 300$) and $-1.7\%$ mean loss ($p < 0.001$, $d = -1.754$). Conditions (b) and (d) with noisy gradients are non-significant for final loss ($p = 0.104$ and $p = 0.154$) but strongly significant for mean trajectory, indicating the noisy gradient perturbation affects the training path more than the endpoint.
+The key finding is that **gradient type dominates**: conditions with sign-only gradients (a, c) degrade final loss by +5.2--6.5%, while conditions with noisy $\sigma = 0.1$ gradients (b, d) degrade by +2.4--2.6%. All four conditions significantly degrade final loss ($p < 0.04$), but sign-only conditions show roughly double the effect. The forward perturbation type (tiny noise vs. dropout) has a smaller effect. The sign-only vs. noisy gradient contrast (averaging across forward types) yields $-3.8\%$ final loss ($p = 0.022$, $d = -0.440$ at $n = 30$; $-2.9\%$, $p < 0.0001$, $d = -0.355$ at $n = 300$) and $-1.5\%$ mean loss ($p < 0.001$, $d = -1.921$). All conditions also strongly degrade mean trajectory loss.
 
 **Classification:** *Gradient-type dominance* — the factorial design reveals that gradient information quality (sign-only vs. noisy) is the primary driver of degradation, with forward perturbation type playing a secondary role. This is a substrate-dependent finding: the gradient channel is more sensitive to information destruction than the forward channel.
 
@@ -421,18 +421,18 @@ The chimera result shows that the basin of attraction is wide enough to absorb d
 
 **At $n = 30$:** The key finding resolves clearly and significantly. This is the paper's strongest emergent-behavior result.
 
-**At $n = 300$:** The stress inoculation effect strengthens dramatically, from $p = 0.138$ (final loss) at $n = 30$ to $p = 0.0001$ at $n = 300$. Sudden full noise degrades by +1.8% vs. control ($p < 0.0001$, $d = +0.318$). Gradual noise shows +0.5% degradation ($p = 0.017$, $d = +0.139$). The critical comparison — gradual vs. sudden full — yields $\Delta = -1.3\%$ ($p = 0.0001$, $d = -0.227$), confirming stress inoculation as a robust phenomenon. Sudden half noise: $+0.8\%$ ($p = 0.0002$, $d = +0.219$). Gradual mean trajectory is significantly *below* control ($-0.1\%$, $p < 0.0001$, $d = -0.483$). The escalation from non-significant at $n = 30$ to highly significant at $n = 300$ is the clearest example of a signal emerging with resolution.
+**At $n = 300$:** The stress inoculation effect strengthens further, from $p = 0.032$ (final loss) at $n = 30$ to $p = 0.0001$ at $n = 300$. Sudden full noise degrades by +1.8% vs. control ($p < 0.0001$, $d = +0.318$). Gradual noise shows +0.5% degradation ($p = 0.017$, $d = +0.139$). The critical comparison — gradual vs. sudden full — yields $\Delta = -1.3\%$ ($p = 0.0001$, $d = -0.227$), confirming stress inoculation as a robust phenomenon. Sudden half noise: $+0.8\%$ ($p = 0.0002$, $d = +0.219$). Gradual mean trajectory is significantly *below* control ($-0.1\%$, $p < 0.0001$, $d = -0.483$). The stress inoculation signal is already significant at $n = 30$ and strengthens at $n = 300$.
 
 **Table 9.** Gradual vs. sudden noise ($n = 30$, 200 steps).
 
 | Condition | Final Loss | $p$ (vs ctrl) | Mean Loss | $p$ (mean) |
 |---|---|---|---|---|
 | Control | 2.557 ± 0.407 | — | 2.627 ± 0.028 | — |
-| Sudden full ($\sigma = 0.1$) | 2.605 ± 0.376 | 0.110 | 2.691 ± 0.028 | <0.001*** |
-| Gradual (0 to 0.1) | 2.558 ± 0.407 | 0.932 | 2.623 ± 0.028 | 0.006** |
-| Sudden half (step 100) | 2.572 ± 0.404 | 0.329 | 2.628 ± 0.028 | 0.188 |
+| Sudden full ($\sigma = 0.1$) | 2.618 ± 0.388 | 0.032* | 2.690 ± 0.028 | <0.001*** |
+| Gradual (0 to 0.1) | 2.564 ± 0.408 | 0.641 | 2.622 ± 0.027 | <0.001*** |
+| Sudden half (step 100) | 2.582 ± 0.416 | 0.040* | 2.630 ± 0.028 | 0.004** |
 
-**This is the paper's strongest finding.** Gradual exposure to noise builds tolerance: the gradually-ramped condition is statistically indistinguishable from control at $n = 30$ ($p = 0.932$), while sudden exposure to the same noise level shows a trend toward degradation ($+1.9\%$, $p = 0.110$). At $n = 30$, the direct gradual-vs-sudden comparison is non-significant for final loss ($-1.8\%$, $p = 0.138$, $d = -0.278$) but the effect is clear in mean trajectory loss: gradual mean is significantly *below* control ($-0.2\%$, $p = 0.006$, $d = -0.540$), while sudden full mean is significantly above ($+2.4\%$, $p < 0.001$, $d = +4.193$). At $n = 300$, the final-loss comparison resolves to high significance ($p = 0.0001$, $d = -0.227$), suggesting the noise acts as regularization when introduced gently.
+**This is the paper's strongest finding.** Gradual exposure to noise builds tolerance: the gradually-ramped condition shows no significant degradation at $n = 30$ ($p = 0.641$), while sudden exposure to the same noise level significantly degrades ($+2.4\%$, $p = 0.032$). At $n = 30$, the direct gradual-vs-sudden comparison is significant for final loss ($-2.1\%$, $p = 0.032$, $d = -0.412$) and the effect is clear in mean trajectory loss: gradual mean is significantly *below* control ($-0.2\%$, $p < 0.001$, $d = -0.770$), while sudden full mean is significantly above ($+2.4\%$, $p < 0.001$, $d = +4.306$). At $n = 300$, the final-loss comparison strengthens further ($p = 0.0001$, $d = -0.227$), suggesting the noise acts as regularization when introduced gently.
 
 **Why is this emergent?** The gradient update rule is identical in the sudden and gradual conditions at every step — the only difference is the *history* of noise levels. The optimizer at step $t$ does not remember what noise level was applied at step $t-1$. Yet the system's final state depends on that history, and the gradually-exposed model reaches a region of weight space that the suddenly-exposed model does not.
 
@@ -515,12 +515,12 @@ Negating gradients for layers 2-3 causes significant degradation (+24.8%, $p < 0
 | Freeze 1-2 heads | -0.1-0.3% | 0.025-0.253 | -0.0% | 0.002-0.053 | Basin geometry / emergent |
 | Freeze 4-16 heads | -0.4-0.7% | 0.001-0.322 | -0.1-0.3% | <0.001 | Emergent (trajectory) |
 | Window=4,8 | -0.1-0.3% | >0.30 | -0.0-0.1% | 0.037-<0.001 | Tolerance |
-| Partial flow (25-75%) | -0.1% | 0.048-0.510 | ±0.0% | >0.45 | Tolerance |
-| Noisy σ=0.01 | -0.2% | 0.738 | +0.0% | 0.496 | Tolerance |
-| Noisy σ=0.1 | -0.2% | 0.910 | +2.1% | <0.001 | Trajectory degradation |
+| Partial flow (25-75%) | ±0.1% | 0.379-0.915 | ±0.0% | >0.18 | Tolerance |
+| Noisy σ=0.01 | +0.1% | 0.843 | +0.0% | 0.333 | Tolerance |
+| Noisy σ=0.1 | +2.4% | 0.032 | +2.4% | <0.001 | Degradation |
 | Quantized 3-bit | +3.8% | 0.008 | +2.5% | <0.001 | Degradation |
 | Sign-only | +5.0% | 0.002 | +3.9% | <0.001 | Degradation |
-| Cell-view (local loss) | +0.1% | 0.776 | +0.2% | 0.005 | Basin geometry |
+| Cell-view (local loss) | -0.9% | 0.237 | +0.8% | <0.001 | Basin geometry |
 
 **Table 13b.** Multi-phase perturbation results (Experiments 7-12, paired $t$-tests, $n = 30$).
 
@@ -529,9 +529,9 @@ Negating gradients for layers 2-3 causes significant degradation (+24.8%, $p < 0
 | 7: Recovery | Damaged then recovered | +0.0% | 0.886 | **Emergent** |
 | 8: Chimera (AABB) | Frankenstein assembly | -0.4% | 0.265 | Basin geometry |
 | 8: Chimera (ABAB) | Alternating layers | -0.0% | 0.985 | Basin geometry |
-| 9: Sudden noise | $\sigma = 0.1$ all steps | +1.9% | 0.110 | Degradation |
-| 9: Gradual noise | Ramp 0 to 0.1 | +0.0% | 0.932 | **Emergent** |
-| 9: Gradual vs sudden | Direct comparison | -1.8% | 0.138 | **Emergent** |
+| 9: Sudden noise | $\sigma = 0.1$ all steps | +2.4% | 0.032* | Degradation |
+| 9: Gradual noise | Ramp 0 to 0.1 | +0.3% | 0.641 | **Emergent** |
+| 9: Gradual vs sudden | Direct comparison | -2.1% | 0.032* | **Emergent** |
 | 10: Regeneration (any layer) | Reset then retrain | +0.1-0.4% | >0.17 | **Emergent** |
 | 11: Transplant vs random | Donor vs random layer | ±0.0% | 0.880 | Basin geometry |
 | 12: Adversarial L2-3 | Negate gradients | +24.8% | <0.001*** | Severe degradation |
@@ -561,7 +561,7 @@ Negating gradients for layers 2-3 causes significant degradation (+24.8%, $p < 0
 
 #### Emergent Behaviors
 
-**Finding 1: Gradual exposure builds tolerance (Exp 9).** Gradual noise ramp (0 to 0.1) produces no final-loss degradation at $n = 30$ ($p = 0.932$), while sudden exposure to the same noise level trends toward degradation ($+1.9\%$, $p = 0.110$). At $n = 30$, the direct comparison is non-significant for final loss ($p = 0.138$, $d = -0.278$) but highly significant for mean trajectory. At $n = 300$, the final-loss comparison resolves to $p = 0.0001$ ($d = -0.227$). The gradient update rule is identical at every step — only the history of noise levels differs. That history changes the system's final state.
+**Finding 1: Gradual exposure builds tolerance (Exp 9).** Gradual noise ramp (0 to 0.1) produces no significant final-loss degradation at $n = 30$ ($p = 0.641$), while sudden exposure to the same noise level significantly degrades ($+2.4\%$, $p = 0.032$). At $n = 30$, the direct comparison is significant for final loss ($p = 0.032$, $d = -0.412$) and highly significant for mean trajectory. At $n = 300$, the final-loss comparison strengthens to $p = 0.0001$ ($d = -0.227$). The gradient update rule is identical at every step — only the history of noise levels differs. That history changes the system's final state.
 
 **Finding 2: Complete recovery (Exp 7).** A model damaged during training (8 frozen heads for 100 steps) recovers to identical final loss at $n = 30$ ($p = 0.886$, ratio 1.0000). All 30 runs recovered within a mean of 1 step. At $n = 300$, a tiny but significant residual emerges ($p = 0.030$, $d = +0.126$) but remains within practical equivalence.
 
@@ -579,7 +579,7 @@ Negating gradients for layers 2-3 causes significant degradation (+24.8%, $p < 0
 
 **Finding 7: Gradient quality matters more than quantity (Exp 3, 5).** Reducing gradient precision (sign-only: $d = +5.696$ for mean) degrades more than reducing gradient magnitude (partial flow: mostly ns) or completeness (freezing: improves trajectory). The architecture tolerates magnitude reduction but not sign-structure destruction.
 
-**Finding 8: Gradient type dominates in the courage/caution factorial (Exp 6).** In the $2 \times 2$ composite design, sign-only gradients (+5.0--5.5% final loss) degrade far more than noisy $\sigma = 0.1$ gradients (+1.6--2.4%), regardless of forward perturbation type. The sign-only vs. noisy gradient contrast: $-3.0\%$ ($p = 0.066$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$, $d = -0.355$). The gradient channel is more sensitive to information destruction than the forward channel.
+**Finding 8: Gradient type dominates in the courage/caution factorial (Exp 6).** In the $2 \times 2$ composite design, sign-only gradients (+5.2--6.5% final loss) degrade far more than noisy $\sigma = 0.1$ gradients (+2.4--2.6%), regardless of forward perturbation type. The sign-only vs. noisy gradient contrast: $-3.8\%$ ($p = 0.022$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$, $d = -0.355$). The gradient channel is more sensitive to information destruction than the forward channel.
 
 **Finding 9: Adversarial vs. inactive tolerance (Exp 12).** Frozen layers cost nothing ($p = 0.462$); adversarial layers cost +24.8% ($p < 0.001$, $d = +0.689$). The architecture tolerates absence but not opposition.
 
@@ -589,9 +589,9 @@ At $n = 3$, the following signals were ambiguous; at $n = 30$, they resolved:
 
 - **Head freezing improves final loss:** At $n = 3$, this appeared as a possible improvement signal. At $n = 30$, some final-loss improvements appear significant (freeze 4: $p = 0.001$), but at $n = 300$ all resolve to null (all $p > 0.15$). A different, finer signal persists at all scales: mean-trajectory improvement. The picture sharpened — the robust signal is in the trajectory metric, not the final-loss metric.
 - **DG scales with perturbation:** At $n = 3$, the DG Index appeared to scale with perturbation severity. At $n = 30$, this resolved to null across all conditions ($p > 0.19$). At $n = 300$, the null is confirmed: DG still does not track perturbation, establishing that this metric captures intrinsic trajectory structure rather than perturbation response.
-- **Gradient degradation is neutral:** At $n = 3$, all four methods appeared neutral. At $n = 30$, sign-only and quantized resolved to significant final-loss degradation; noisy $\sigma = 0.1$ showed only trajectory degradation. The resolution was too coarse to see the effect at $n = 3$.
+- **Gradient degradation is neutral:** At $n = 3$, all four methods appeared neutral. At $n = 30$, sign-only, quantized, and noisy $\sigma = 0.1$ all resolved to significant final-loss degradation; only $\sigma = 0.01$ remained tolerated. The resolution was too coarse to see the effects at $n = 3$.
 - **Partial communication outperforms full:** At $n = 3$, a U-shaped curve appeared. At $n = 30$, this resolved to flat (except at zero). The pilot U-shape was sampling noise.
-- **Noise helps:** At $n = 3$, small noise appeared beneficial. At $n = 30$, this resolved to null ($p = 0.496$ for mean, $p = 0.738$ for final). The apparent benefit was within noise.
+- **Noise helps:** At $n = 3$, small noise appeared beneficial. At $n = 30$, this resolved to null ($p = 0.333$ for mean, $p = 0.843$ for final). The apparent benefit was within noise.
 
 
 ## 5. Discussion
@@ -602,7 +602,7 @@ During standard training, the transformer's components cooperate invisibly. Pert
 
 **Emergent behaviors.** Four findings describe behaviors not directly prescribed by the optimization objective. Stress inoculation (Exp 9): the system develops differential tolerance based on noise history, despite identical gradient update rules at every step ($p = 0.0001$ at $n = 300$, $d = -0.227$). Complete recovery (Exp 7): the system returns to the same minimum after a detour through a constrained subspace ($p = 0.886$ at $n = 30$, ratio 1.0000). Complete regeneration (Exp 10): destroyed layers rebuild to control-equivalent performance across all four layer positions ($p > 0.17$ at $n = 30$). Head-freezing trajectory improvement (Exp 1): frozen random-projection heads reduce gradient interference during training ($p < 0.001$, $d = -1.228$ to $-1.366$). These behaviors are consequences of the optimizer operating on this particular loss landscape but are not specified by the loss minimization objective itself.
 
-**Basin geometry.** Three findings — chimera convergence (Exp 8), transplant indifference (Exp 11), and cell-view equivalent convergence (Exp 2) — reflect the expected behavior of gradient descent on a smooth loss landscape with a single dominant attractor. Cell-view (local loss) achieves equivalent final loss to baseline ($p = 0.776$ at $n = 30$, $p = 0.90$ at $n = 300$), demonstrating that the basin is accessible even without inter-layer gradient flow. The basin is wide enough to reach from dramatically different starting points. This is a property of the landscape, not of the system's adaptive capacity.
+**Basin geometry.** Three findings — chimera convergence (Exp 8), transplant indifference (Exp 11), and cell-view equivalent convergence (Exp 2) — reflect the expected behavior of gradient descent on a smooth loss landscape with a single dominant attractor. Cell-view (local loss) achieves equivalent final loss to baseline ($p = 0.237$ at $n = 30$, $p = 0.90$ at $n = 300$), demonstrating that the basin is accessible even without inter-layer gradient flow. The basin is wide enough to reach from dramatically different starting points. This is a property of the landscape, not of the system's adaptive capacity.
 
 **Tolerance.** The system absorbs gradient noise up to a threshold ($\sigma = 0.01$), partial communication reduction (25–75%), and vision restriction without meaningful final-loss degradation. The absence-vs-adversity distinction (Exp 12) defines the tolerance boundary: frozen layers are absorbed ($p = 0.462$); adversarial layers degrade substantially ($p < 0.001$, +24.8%).
 
@@ -614,9 +614,9 @@ Three claims emerge from the combined evidence of twelve experiments at $n = 30$
 
 **Claim 1: Some transformer behaviors are not prescribed by the optimization objective.** Stress inoculation, complete recovery, complete regeneration, and head-freezing trajectory improvement emerge from the interaction between SGD and the loss landscape but are not specified by the loss minimization directive. Perturbation reveals these by forcing the system to operate under constraint.
 
-**Claim 2: Gradual exposure builds tolerance that sudden exposure does not.** Gradual noise ramp produces no final-loss degradation at $n = 30$ ($p = 0.932$), while sudden exposure to the same peak noise level trends toward degradation ($+1.9\%$, $p = 0.110$). At $n = 300$, the gradual-vs-sudden comparison resolves to high significance: $\Delta = -1.3\%$ ($p = 0.0001$, $d = -0.227$). Same optimizer, same peak noise, same number of steps, different history, different outcome.
+**Claim 2: Gradual exposure builds tolerance that sudden exposure does not.** Gradual noise ramp produces no significant final-loss degradation at $n = 30$ ($p = 0.641$), while sudden exposure to the same peak noise level significantly degrades ($+2.4\%$, $p = 0.032$). The direct gradual-vs-sudden comparison is significant at $n = 30$ ($\Delta = -2.1\%$, $p = 0.032$, $d = -0.412$) and strengthens at $n = 300$: $\Delta = -1.3\%$ ($p = 0.0001$, $d = -0.227$). Same optimizer, same peak noise, same number of steps, different history, different outcome.
 
-**Claim 3: Gradient type dominates in the courage/caution factorial.** In the $2 \times 2$ composite design (Exp 6), sign-only gradients degrade final loss by +5.0--5.5% while noisy $\sigma = 0.1$ gradients degrade by only +1.6--2.4%, regardless of forward perturbation type. The gradient-type contrast: $-2.9\%$ ($p < 0.0001$ at $n = 300$, $d = -0.355$). The gradient channel is more sensitive to information destruction than the forward channel — a substrate-dependent finding.
+**Claim 3: Gradient type dominates in the courage/caution factorial.** In the $2 \times 2$ composite design (Exp 6), sign-only gradients degrade final loss by +5.2--6.5% while noisy $\sigma = 0.1$ gradients degrade by +2.4--2.6%, regardless of forward perturbation type. The gradient-type contrast: $-3.8\%$ ($p = 0.022$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$, $d = -0.355$). The gradient channel is more sensitive to information destruction than the forward channel — a substrate-dependent finding.
 
 ### 5.3 Connection to Distributed Chess
 
@@ -626,9 +626,9 @@ Kofman, Campitelli & Levin (2025) implemented a distributed form of chess where 
 
 **Partial communication tolerance (confirmed as tolerance, not improvement).** Reducing gradient flow to 25% produces no significant degradation, but partial flow does not *improve* over full backpropagation. The tolerance is real; the U-shaped curve from $n = 3$ pilot data was noise.
 
-**Courage/caution strategy (gradient type dominates).** In the $2 \times 2$ factorial design, gradient type is the primary driver: sign-only gradients (a, c) degrade final loss by +5.3--5.5%, while noisy $\sigma = 0.1$ gradients (b, d) degrade by +1.6--2.4%. The sign-only vs. noisy gradient contrast: $-3.0\%$ final ($p = 0.066$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$); $-1.7\%$ mean ($p < 0.001$, $d = -1.754$). The gradient channel dominates over the forward channel.
+**Courage/caution strategy (gradient type dominates).** In the $2 \times 2$ factorial design, gradient type is the primary driver: sign-only gradients (a, c) degrade final loss by +5.2--6.5%, while noisy $\sigma = 0.1$ gradients (b, d) degrade by +2.4--2.6%. The sign-only vs. noisy gradient contrast: $-3.8\%$ final ($p = 0.022$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$); $-1.5\%$ mean ($p < 0.001$, $d = -1.921$). The gradient channel dominates over the forward channel.
 
-**Stress inoculation (new, Exp 9).** The gradual-vs-sudden result ($p = 0.0001$ at $n = 300$, $d = -0.227$) has no direct chess analog but connects to Levin's broader developmental biology framework. That gradient descent exhibits stress inoculation suggests this property may appear across optimization substrates — but whether chess or biological systems show the same phenomenon requires direct testing.
+**Stress inoculation (new, Exp 9).** The gradual-vs-sudden result ($p = 0.032$ at $n = 30$, strengthening to $p = 0.0001$ at $n = 300$, $d = -0.227$) has no direct chess analog but connects to Levin's broader developmental biology framework. That gradient descent exhibits stress inoculation suggests this property may appear across optimization substrates — but whether chess or biological systems show the same phenomenon requires direct testing.
 
 **Chimera convergence (new, Exp 8).** Unlike biological chimeras, which can develop abnormally at graft boundaries, transformer chimeras converge seamlessly. This reflects the smoothness of the loss landscape versus the discrete developmental signaling in biological systems.
 
@@ -638,7 +638,7 @@ The three-scale protocol is not merely a replication strategy — it is a method
 
 The practical implication: do not interpret findings at $n = 3$ as conclusions. They are coarse signal. The signal that head freezing appeared to improve final loss at $n = 3$ was not wrong — it was a low-resolution view of a real region of the parameter space. At $n = 30$, the final-loss effect resolved to null, but a different effect (trajectory improvement) became visible. The picture changed not because the $n = 3$ finding was retracted but because the resolution increased.
 
-The $n = 300$ results confirm this framing. Some non-significant findings at $n = 30$ revealed fine structure at $n = 300$ (vision radius, stress inoculation final loss from $p = 0.138$ to $p = 0.0001$, regeneration layer specificity). Some robust findings at $n = 30$ strengthened (sign-only degradation from $p = 0.002$ to $p < 0.0001$; head-freezing trajectory improvement strengthened in effect size). Some $n = 30$ final-loss significances resolved to null at $n = 300$ (head-freezing final loss), clarifying that the trajectory metric captures the real phenomenon. No robust $n = 30$ finding reversed at $n = 300$. The three-scale protocol thus achieved its design objective: coarse signal at $n = 3$, resolved signal at $n = 30$, fine structure at $n = 300$.
+The $n = 300$ results confirm this framing. Some non-significant findings at $n = 30$ revealed fine structure at $n = 300$ (vision radius, stress inoculation final loss from $p = 0.032$ to $p = 0.0001$, regeneration layer specificity). Some robust findings at $n = 30$ strengthened (sign-only degradation from $p = 0.002$ to $p < 0.0001$; head-freezing trajectory improvement strengthened in effect size). Some $n = 30$ final-loss significances resolved to null at $n = 300$ (head-freezing final loss), clarifying that the trajectory metric captures the real phenomenon. No robust $n = 30$ finding reversed at $n = 300$. The three-scale protocol thus achieved its design objective: coarse signal at $n = 3$, resolved signal at $n = 30$, fine structure at $n = 300$.
 
 ### 5.5 Limitations
 
@@ -656,7 +656,7 @@ The $n = 300$ results confirm this framing. Some non-significant findings at $n 
 
 **Competing objectives design.** Gradient negation (Exp 12) is a maximally adversarial perturbation. Subtler forms of inter-layer conflict might reveal more nuanced compensation mechanisms.
 
-**$n = 3$ to $n = 30$ to $n = 300$ signal evolution.** Several $n = 3$ signals changed character at $n = 30$, underscoring the danger of low-power pilot data. The $n = 30$ to $n = 300$ transition showed a different pattern: no robust finding reversed, but new fine-structure signals emerged (vision radius monotonic structure, regeneration layer specificity, stress inoculation final loss from $p = 0.138$ to $p = 0.0001$), and several effects tightened substantially. The most instructive cross-scale change was Exp 1 head-freezing final loss, which showed several significant improvements at $n = 30$ (freeze 4: $p = 0.001$) but all dissolved at $n = 300$ (all $p > 0.15$), confirming that the trajectory metric — not the final-loss metric — captures the real phenomenon.
+**$n = 3$ to $n = 30$ to $n = 300$ signal evolution.** Several $n = 3$ signals changed character at $n = 30$, underscoring the danger of low-power pilot data. The $n = 30$ to $n = 300$ transition showed a different pattern: no robust finding reversed, but new fine-structure signals emerged (vision radius monotonic structure, regeneration layer specificity, stress inoculation final loss from $p = 0.032$ to $p = 0.0001$), and several effects tightened substantially. The most instructive cross-scale change was Exp 1 head-freezing final loss, which showed several significant improvements at $n = 30$ (freeze 4: $p = 0.001$) but all dissolved at $n = 300$ (all $p > 0.15$), confirming that the trajectory metric — not the final-loss metric — captures the real phenomenon.
 
 ### 5.6 Interpretive Lenses
 
@@ -686,13 +686,13 @@ We applied morphogenetic perturbation methodology — adapted from Levin et al.'
 
 **Emergent behaviors.** Four findings are not prescribed by SGD. Stress inoculation (Exp 9): gradual noise builds tolerance that sudden noise does not ($p = 0.0001$ at $n = 300$, $d = -0.227$), despite identical gradient rules at every step. Complete recovery (Exp 7): path-independent return to identical final loss after transient damage ($p = 0.886$ at $n = 30$, ratio $1.0000 \pm 0.008$, 30/30 recovered; at $n = 300$, tiny residual $p = 0.030$, $d = +0.126$). Complete regeneration (Exp 10): destroyed layers rebuild to control-equivalent performance at $n = 30$ ($p > 0.17$), with tiny layer-specific residuals emerging at $n = 300$ ($d = 0.12$--$0.17$). Head-freezing trajectory improvement (Exp 1): frozen random-projection heads reduce gradient interference ($p < 0.0001$ for trajectory metric at $n = 300$, $d = -1.228$ to $-1.421$); final-loss improvements at $n = 30$ resolve to null at $n = 300$.
 
-**Basin geometry.** Chimera convergence (Exp 8), transplant indifference (Exp 11), and cell-view equivalent convergence (Exp 2) reflect SGD doing its job in a smooth loss landscape. Local loss achieves equivalent final loss to end-to-end backpropagation ($p = 0.776$ at $n = 30$, $p = 0.90$ at $n = 300$). The optimizer re-finds the same minimum from dramatically different starting points.
+**Basin geometry.** Chimera convergence (Exp 8), transplant indifference (Exp 11), and cell-view equivalent convergence (Exp 2) reflect SGD doing its job in a smooth loss landscape. Local loss achieves equivalent final loss to end-to-end backpropagation ($p = 0.237$ at $n = 30$, $p = 0.90$ at $n = 300$). The optimizer re-finds the same minimum from dramatically different starting points.
 
 **Tolerance.** The architecture absorbs gradient noise up to a threshold, partial communication reduction, and vision restriction without meaningful final-loss degradation.
 
-**Gradient-type dominance.** In the $2 \times 2$ factorial (Exp 6), sign-only gradients degrade final loss by +5.0--5.5% while noisy $\sigma = 0.1$ gradients degrade by +1.6--2.4%. The gradient channel is more sensitive to information destruction than the forward channel ($-2.9\%$, $p < 0.0001$ at $n = 300$, $d = -0.355$).
+**Gradient-type dominance.** In the $2 \times 2$ factorial (Exp 6), sign-only gradients degrade final loss by +5.2--6.5% while noisy $\sigma = 0.1$ gradients degrade by +2.4--2.6%. The gradient channel is more sensitive to information destruction than the forward channel ($-3.8\%$, $p = 0.022$ at $n = 30$; $-2.9\%$, $p < 0.0001$ at $n = 300$, $d = -0.355$).
 
-Perturbation reveals what normal operation conceals. At $n = 3$ the shapes were rough; at $n = 30$ they sharpened; at $n = 300$ the fine structure confirmed and extended the picture — stress inoculation strengthened from non-significant ($p = 0.138$) to highly significant ($p = 0.0001$), vision radius revealed a monotonic structure invisible at lower power, regeneration showed layer-specific signatures, head-freezing final-loss significances resolved to null while trajectory improvement strengthened, and every robust finding held. The three-scale protocol achieved its purpose: what is real survives the turn of the resolution dial.
+Perturbation reveals what normal operation conceals. At $n = 3$ the shapes were rough; at $n = 30$ they sharpened; at $n = 300$ the fine structure confirmed and extended the picture — stress inoculation strengthened from $p = 0.032$ to highly significant ($p = 0.0001$), vision radius revealed a monotonic structure invisible at lower power, regeneration showed layer-specific signatures, head-freezing final-loss significances resolved to null while trajectory improvement strengthened, and every robust finding held. The three-scale protocol achieved its purpose: what is real survives the turn of the resolution dial.
 
 
 ## References
