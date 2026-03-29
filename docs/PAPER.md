@@ -1,7 +1,12 @@
-# Morphogenetic Perturbation Reveals Emergent Behaviors in Minimal Transformers
-
-**Date:** March 2026
-
+---
+title: |
+  On Faultization:\
+  Generative Pre-Trained Transformer.\
+  Morphogenetic Competencies of\
+  a Minimal Transformer
+author: PIATRA . INSTITUTE
+date: March 2026
+---
 
 ## Abstract
 
