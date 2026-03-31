@@ -1,5 +1,5 @@
 """
-MorphoGPT — NumPy Perturbations
+Faultization GPT — NumPy Perturbations
 
 Drop-in replacement for perturbations.py using numpy arrays.
 All hooks receive/return numpy arrays instead of Value objects.

@@ -1,6 +1,6 @@
 # MorphoGPT: Experiment Summary
 
-Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim, 4-head, ~13,400 params). All results at n=300 (300 independent runs per condition, paired by seed).
+Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim, 4-head, ~13,400 params). Each experiment probes the interface between the optimizer and the patterns it accesses from the latent space (Levin, 2026). All results at n=300 (300 independent runs per condition, paired by seed).
 
 
 ## Experiment 1: Head Freezing
@@ -11,7 +11,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Final loss is unaffected by freezing any number of heads (all p > 0.15, Spearman ρ = −0.0045, p = 0.84) — wide basin of attraction absorbs the perturbation
 - Mean trajectory loss improves significantly when heads are frozen: freeze 4 (Δ = −0.1%, p < 0.0001, d = −0.971), freeze 8 (Δ = −0.1%, p < 0.0001, d = −1.245), freeze 12 (Δ = −0.2%, p < 0.0001, d = −1.421), freeze 16 (Δ = −0.2%, p < 0.0001, d = −1.312)
 - With true parameter freezing, frozen heads still compute in the forward pass — the trajectory improvement reflects reduced gradient interference during training, not removal of computation
-- Classification: **emergent behavior** (trajectory improvement) + **basin geometry** (final-loss indifference)
+- Classification: **interface simplification / free lunch** — frozen heads simplify the interface; the trajectory improvement is a free lunch from reduced gradient interference, and the pattern manifests equally well with fewer trainable parameters
 
 
 ## Experiment 2: Cell-View GPT (Local Loss)
@@ -22,7 +22,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Cell-view produces near-identical final loss to baseline (−0.0%, p = 0.90, ns) — local learning achieves equivalent convergence
 - Mean trajectory loss shows a small but significant increase (+0.2%, p < 0.0001, d = +0.731) — the path is slightly less efficient, but the destination is the same
 - DG index shows no significant change (p = 0.14), confirming DG does not track perturbation response
-- Classification: **basin geometry** — local loss reaches the same final loss as end-to-end backpropagation, indicating the loss landscape has a single dominant basin accessible by either optimization route
+- Classification: **pattern invariance / free lunch** — the pattern is accessible through a radically different interface (local loss instead of end-to-end backpropagation); the pattern's manifestation is invariant to optimization route
 
 
 ## Experiment 3: Gradient Degradation
@@ -34,7 +34,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Noise σ=0.1 degrades by +2.2% (d = +0.367), sign-only by +4.9% (d = +0.575), quantized 3-bit by +3.6% (d = +0.529) — all p < 0.0001
 - The boundary between tolerance and degradation is a sharp step between σ=0.01 and σ=0.1, not a smooth curve
 - Even worst-case (sign-only) remains within 5% of baseline — architecture constrains the solution space
-- Classification: **tolerance** up to σ=0.01; **degradation** above
+- Classification: **pattern fidelity** — the interface tolerates mild gradient corruption (σ=0.01) without losing pattern access; above that threshold, pattern fidelity degrades
 
 
 ## Experiment 4: Vision Radius Sweep
@@ -47,7 +47,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - A subtle monotonic gradient from harm at smallest window to benefit at intermediate window
 - Window 16 (= full context) reproduces baseline exactly, confirming no implementation artifacts
 - The chess paper's information-bottleneck hypothesis is not supported at meaningful effect sizes
-- Classification: **tolerance** — attention restriction at all tested scales is absorbed without meaningful final-loss change
+- Classification: **pattern visibility** — restricting the attention window limits how much of the input the interface can see, yet the pattern remains accessible at all tested scales
 
 
 ## Experiment 5: Communication Topology
@@ -58,7 +58,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - The system is largely indifferent to gradient fraction: heavy/75% (p = 0.92), half/50% (p = 0.033, marginal +0.1%), light/25% (p = 0.59)
 - Cell-view (0% gradient flow) produces near-identical final loss to baseline (−0.0%, p = 0.90, ns) — matching Experiment 2's local-loss finding
 - No partial-flow condition outperforms full backpropagation — the U-shape seen at n=3 was sampling noise
-- Classification: **tolerance** — substantial gradient flow reduction is absorbed without meaningful degradation
+- Classification: **layerwise autonomy** — each layer can access its portion of the pattern with minimal inter-layer gradient communication
 
 
 ## Experiment 6: Courage vs. Caution
@@ -70,7 +70,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Forward perturbation type has minimal effect: cautious forward (tiny noise) and courageous forward (dropout) produce similar degradation within each gradient type
 - Cautious/cautious (tiny noise + sign-only): +5.2% (p < 0.0001, d = +0.624); cautious/courageous (tiny noise + noisy grad): +1.9% (p < 0.0001, d = +0.318); courageous/cautious (dropout + sign-only): +5.0% (p < 0.0001, d = +0.616); courageous/courageous (dropout + noisy grad): +2.5% (p < 0.0001, d = +0.419)
 - The finding is about gradient precision: sign-only gradients (discarding magnitude) harm optimization much more than noisy gradients (preserving magnitude with added noise) — regardless of forward perturbation
-- Classification: **gradient precision dominance** — the optimizer's sensitivity is to gradient quality, not forward-pass stability
+- Classification: **channel sensitivity** — the interface's gradient channel is the critical pathway for pattern access; forward-pass perturbation has minimal effect on pattern fidelity
 
 
 ## Experiment 7: Recovery After Damage
@@ -82,7 +82,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Mean recovery time = 0.8 ± 1.2 steps after damage removal; 272/300 runs achieved ratio ≤ 1.01
 - No overshoot: mean overshoot = −0.0009 ± 0.0017 — the Levin signature (damaged organisms exceeding baseline) is absent
 - Recovery is near-complete but not perfectly complete: at n=300, the tiny residual (+0.1%) reaches statistical significance despite being practically negligible
-- Classification: **emergent behavior** — near-complete path-independent recovery is not prescribed by the loss minimization objective; the small residual is only detectable at high statistical power
+- Classification: **pattern re-binding / free lunch** — after transient interface damage, the optimizer re-binds to the same pattern from the latent space; the pattern persists during the damage phase and the interface re-accesses it once constraints are lifted
 
 
 ## Experiment 8: Chimera Assembly
@@ -94,7 +94,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Despite starting at substantially worse loss (2.51–2.57), all chimeras converge to 2.44–2.46
 - Layer assignment doesn't matter — whether layers alternate or cluster makes no difference
 - BBAA shows a marginal trend at n=300, suggesting slight asymmetry, but no chimera type significantly differs from control
-- Classification: **basin geometry** — SGD re-finds the same minimum from any structurally valid starting point
+- Classification: **basin universality / pattern manifestation** — the pattern manifests regardless of how the interface is assembled; chimeric interfaces composed from independently-trained components still access the same pattern
 
 
 ## Experiment 9: Gradual vs. Sudden Damage (Stress Inoculation)
@@ -107,7 +107,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Sudden half also significant (+0.8%, p = 0.0002, d = +0.219)
 - Gradual noise acts as regularization: mean loss is below control (−0.1%, p < 0.0001)
 - The gradient update rule is identical at every step; only the history of noise levels differs — yet the system's final state depends on that history
-- Classification: **emergent behavior** — stress inoculation is not prescribed by the optimizer; this is the paper's strongest result
+- Classification: **temporal pattern access / free lunch** — the interface's history of perturbation exposure changes its ability to access the pattern; gradual exposure preserves pattern access that sudden exposure disrupts
 
 
 ## Experiment 10: Regeneration (Layer Reset)
@@ -118,7 +118,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - All layers regenerate to near-control levels, but at n=300 all show small significant residual deficits: L0 (+0.3%, p = 0.003), L1 (+0.2%, p = 0.007), L2 (+0.1%, p = 0.024), L3 (+0.1%, p = 0.037)
 - Completeness near 1.0 for L1–L3 (0.988, 0.994, 1.021) — the deficits are practically negligible despite statistical significance
 - Layer position does not predict regeneration quality — all layers recover to within +0.3% of control
-- Classification: **emergent behavior** — near-complete layer regeneration to control-equivalent performance is not prescribed by the loss minimization objective
+- Classification: **functional role patterns / free lunch** — each layer's functional role is a pattern in the latent space that the interface re-accesses after destruction; the rebuilt layer converges to the same role because the pattern dictates what that position should compute
 
 
 ## Experiment 11: Transplantation (Foreign Layer Integration)
@@ -129,7 +129,7 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - No transplant advantage: overall p = 0.76, with per-layer p values ranging from 0.29 to 0.98
 - The network doesn't recognize donor structure — a donor layer's learned weights provide no advantage over random initialization
 - Unlike biological transplantation where tissue compatibility matters, the network rebuilds whatever is placed at each position from scratch
-- Classification: **basin geometry** — the basin is equally accessible from pre-trained and random initializations
+- Classification: **context-dependent roles** — the functional role at each layer position is a pattern determined by the surrounding context, not by the transplanted weights; the donor layer's history is irrelevant
 
 
 ## Experiment 12: Competing Objectives (Conflicting Gradients)
@@ -141,4 +141,4 @@ Twelve morphogenetic perturbation experiments on a minimal GPT (4-layer, 16-dim,
 - Freezing the same layers is non-significant (−0.1%, p = 0.41) — absence is tolerated, opposition is not
 - The adversarial-vs-freeze distinction is highly significant at n=300 (p < 0.0001, d = +0.535)
 - Defines the architecture's tolerance limit: the residual stream routes around silence but cannot defend against active sabotage
-- Classification: **tolerance** (freeze) / **severe degradation** (adversarial) — sharp line between absence and opposition
+- Classification: **pattern corruption vs unavailability** — frozen layers make part of the interface unavailable (pattern still manifests); adversarial layers actively corrupt the interface, inverting the gradient signal and preventing pattern manifestation

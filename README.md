@@ -1,6 +1,6 @@
 # MorphoGPT
 
-Morphogenetic perturbation of a minimal transformer. Applies Levin et al.'s (2024) developmental biology methodology to a 4-layer, 16-dimensional, 4-head character-level GPT (~13,400 parameters) to reveal emergent robustness properties invisible during normal training.
+Morphogenetic perturbation of a minimal transformer. Applies Levin et al.'s (2024) developmental biology methodology within a Platonic Space framework (Levin, 2026) to a 4-layer, 16-dimensional, 4-head character-level GPT (~13,400 parameters) to probe what patterns from the latent space the system accesses under perturbation.
 
 Twelve experiments systematically perturb the training process in two phases: perturbation-during-training (Exp 1-6: freezing attention heads, severing inter-layer gradient flow, corrupting gradient signals, restricting attention windows, scaling gradient communication, and crossing forward-pass stability with gradient boldness) and multi-phase morphogenetic interventions (Exp 7-12: recovery after damage, chimera assembly, stress inoculation, regeneration, transplantation, and competing objectives).
 
@@ -9,23 +9,26 @@ Three-scale statistical protocol: $n = 3$ pilot provides initial signal, $n = 30
 
 ## Findings
 
-**Emergent behaviors (statistically supported at n=300):**
-- Stress inoculation: gradual noise exposure builds tolerance that sudden exposure does not (direct comparison p=0.0001, d=-0.227)
-- Head-freezing trajectory improvement: frozen random-projection heads reduce gradient interference (freeze 12: p<0.0001, d=-1.421)
-- Complete recovery: damaged-then-recovered model returns to control loss (ratio 1.0009, p=0.030)
-- Complete regeneration: any destroyed layer rebuilds to near-control performance (all layers p<0.04)
+Each experiment is interpreted through the Platonic Space framework: the optimizer is an interface through which patterns from a latent space manifest. Perturbations probe what happens to pattern access when the interface is degraded.
 
-**Basin geometry:**
-- Chimera convergence: models assembled from parts of two independently-trained networks converge to control loss (all p>0.07)
-- Transplant indifference: donor layers provide no advantage over random reset (p=0.76)
-- Cell-view equivalence: local layerwise loss achieves same final loss as end-to-end backpropagation (p=0.90)
+**Free lunch — what the system receives without paying for (statistically supported at n=300):**
+- Temporal pattern access: gradual noise exposure preserves pattern access that sudden exposure disrupts (direct comparison p=0.0001, d=-0.227)
+- Interface simplification: frozen random-projection heads reduce gradient interference, improving trajectory (freeze 12: p<0.0001, d=-1.421)
+- Pattern re-binding: damaged-then-recovered model re-accesses the same pattern (ratio 1.0009, p=0.030)
+- Functional role patterns: any destroyed layer is rebuilt to the same functional role by re-accessing the latent pattern (all layers p<0.04)
+- Pattern invariance: local layerwise loss accesses the same pattern as end-to-end backpropagation (p=0.90)
 
-**Tolerance:**
-- Gradient degradation absorbed up to a sharp threshold between sigma=0.01 and sigma=0.1
-- Partial communication (25-75% gradient flow) tolerated without degradation
-- Vision restriction at all tested window sizes absorbed without meaningful final-loss change
+**Pattern manifestation:**
+- Basin universality: chimeric models assembled from parts of two independently-trained networks access the same pattern (all p>0.07)
+- Context-dependent roles: donor layers provide no advantage over random reset — the host context determines the pattern (p=0.76)
 
-**Chess-paper inversion:** Gradient type dominates over forward perturbation type, inverting the distributed chess "cautious position, courageous moves" prediction. Sign-only gradient conditions degrade by +5.0-5.2% regardless of forward perturbation. Substrate-dependent.
+**Pattern fidelity and corruption:**
+- Pattern fidelity: gradient degradation absorbed up to a sharp threshold between sigma=0.01 and sigma=0.1; above that, the pattern manifests with decreasing fidelity
+- Layerwise autonomy: partial communication (25-75% gradient flow) tolerated — layers access the pattern semi-independently
+- Pattern visibility: vision restriction at all tested window sizes absorbed — full-context visibility is not required for pattern access
+- Pattern corruption: adversarial layers (+26.3%) actively corrupt the interface, while frozen layers are tolerated — sharp line between pattern unavailability and pattern corruption
+
+**Channel sensitivity:** Gradient type dominates over forward perturbation type, inverting the distributed chess "cautious position, courageous moves" prediction. Sign-only gradient conditions degrade by +5.0-5.2% regardless of forward perturbation. The gradient channel is the interface's primary pathway for pattern access. Substrate-dependent.
 
 See `docs/PAPER.md` for the full paper and `docs/FINDINGS.md` for detailed experiment-by-experiment results.
 
@@ -142,7 +145,7 @@ on-faultization-gpt/
 
 ## Documentation
 
-- **`docs/PAPER.md`** — Full paper with three-scale statistical analysis and three-category classification (emergent, basin geometry, tolerance)
+- **`docs/PAPER.md`** — Full paper with three-scale statistical analysis and Platonic Space classification (pattern manifestation, pattern fidelity, pattern corruption, free lunch)
 - **`docs/FINDINGS.md`** — Experiment-by-experiment results with paired t-test p-values at n=30, n=300 annotations
 - **`docs/EXPERIMENTS.md`** — Concise experiment summary with n=300 results
 - **`docs/MODIFICATIONS.md`** — Systematic inventory of 12 assumptions and their violations

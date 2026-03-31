@@ -1,5 +1,5 @@
 """
-MorphoGPT — Experiment Runner (NumPy Backend)
+Faultization GPT — Experiment Runner (NumPy Backend)
 
 Drop-in replacement for experiments.py using numpy arrays.
 Same interface: ExperimentConfig, run_experiment, run_sweep, experiment_*.

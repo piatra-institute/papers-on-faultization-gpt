@@ -1,7 +1,7 @@
 """
-MorphoGPT — Metrics
+Faultization GPT — Metrics
 
-Competence metrics, trajectory analysis, and Levin-style measurements.
+Competence metrics, trajectory analysis, and faultization measurements.
 Operates on Probe data collected during training.
 """
 

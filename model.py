@@ -1,5 +1,5 @@
 """
-MorphoGPT — NumPy Backend
+Faultization GPT — NumPy Backend
 
 Drop-in replacement for morphogpt.py using numpy arrays instead of scalar
 autograd. ~1000x faster: each 200-step run takes seconds instead of minutes.

@@ -1,5 +1,5 @@
 """
-MorphoGPT — Visualization
+Faultization GPT — Visualization
 
 Plotting functions that take Probe data and produce graphs.
 Requires matplotlib (installed via run.py inline script metadata).

@@ -1,8 +1,8 @@
 # MorphoGPT: Experimental Findings
 
-Morphogenetic perturbation analysis of a minimal GPT, asking: does the system exhibit behaviors that Stochastic Gradient Descent (SGD) didn't prescribe? We apply Levin's developmental biology methodology to reveal emergent behaviors in transformer learning dynamics.
+Morphogenetic perturbation analysis of a minimal GPT, asking: what patterns from the latent space does the system access, and how does interface perturbation affect that access? We apply Levin's developmental biology methodology within a Platonic Space framework (Levin, 2026) to probe the interface between the optimizer and the patterns it reaches.
 
-**Central question:** SGD says "minimize loss." It does not say "build tolerance through gradual exposure," "recover completely from damage," or "regenerate a destroyed layer." When the system does these things anyway, they are emergent — not directly prescribed by the optimization objective. The experiments below identify where such behaviors appear, where basin geometry explains convergence, where a local loss objective reaches the same endpoint through different basin geometry, and where the system simply absorbs perturbation (tolerance).
+**Central question:** The optimizer is an interface through which patterns from the latent space manifest. These experiments probe what happens when that interface is perturbed: does the pattern still manifest (pattern manifestation)? How much degradation can the interface sustain before the pattern is lost (pattern fidelity)? Can the interface actively mislead, inverting the pattern (pattern corruption)? And what does the system receive without paying for (free lunch)?
 
 
 ## 1. Setup
@@ -44,7 +44,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Mean trajectory loss shows a genuine improvement.** Freezing 4+ heads produces a statistically significant reduction in mean loss: freeze 4 ($p < 0.001$, $d = -1.008$), freeze 8 ($p < 0.001$, $d = -1.228$), freeze 12 ($p < 0.001$, $d = -1.366$), freeze 16 ($p < 0.001$, $d = -1.070$). Effects are 0.1–0.3% of mean loss — small but statistically robust. Freeze 2 also significant ($p = 0.0019$, $d = -0.623$) and freeze 1 marginal ($p = 0.0528$, $d = -0.369$). Frozen heads at random initialization reduce gradient interference during training in a way SGD did not prescribe.
 
-**Classification:** Trajectory improvement for 4+ frozen heads = *emergent behavior*. Final-loss indifference at $n = 300$ = *basin geometry*.
+**Classification:** *Interface simplification / Free lunch* — frozen heads simplify the interface (fewer trainable parameters), yet the pattern manifests equally well; the trajectory improvement is a free lunch the system receives from reduced gradient interference.
 
 **Trajectory shape is preserved.** Cross-condition trajectory correlations exceed 0.95 at all freezing levels.
 
@@ -53,7 +53,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Motivation:** Each layer treated as an autonomous agent. Local loss (layerwise cross-entropy) applied so each layer learns only from its own local loss signal, with no end-to-end backpropagation.
 
-**Scaling note:** At $n = 3$, the signal was ambiguous — cell-view appeared to elevate DG substantially (+25.5%), suggesting possible rerouting behavior. At $n = 30$, the DG signal resolved to null and cell-view produces near-identical final loss ($p = 0.237$). At $n = 300$, cell-view final loss remains non-significant ($p = 0.90$), while mean loss shows a significant increase ($+0.8\%$, $p < 0.0001$, $d = +0.731$). Local loss achieves equivalent convergence through different basin geometry.
+**Scaling note:** At $n = 3$, the signal was ambiguous — cell-view appeared to elevate DG substantially (+25.5%), suggesting possible rerouting behavior. At $n = 30$, the DG signal resolved to null and cell-view produces near-identical final loss ($p = 0.237$). At $n = 300$, cell-view final loss remains non-significant ($p = 0.90$), while mean loss shows a significant increase ($+0.8\%$, $p < 0.0001$, $d = +0.731$). Local loss achieves equivalent convergence — the pattern is invariant to optimization route.
 
 ### Results
 
@@ -66,7 +66,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Local loss achieves equivalent final loss.** Cell-view produces near-identical final loss ($-0.9\%$, $p = 0.237$, $d = -0.220$). Mean loss shows a significant increase ($+0.8\%$, $p < 0.001$, $d = +1.302$). The local loss objective finds the same final basin through a slightly different trajectory.
 
-**Classification:** *Basin geometry* — local loss reaches the same endpoint as end-to-end backpropagation. The local loss objective defines a different optimization landscape that nevertheless converges to the same minimum.
+**Classification:** *Pattern invariance / Free lunch* — the pattern is accessible through a radically different interface (local loss instead of end-to-end backpropagation). The pattern's manifestation is invariant to optimization route — a free lunch from the latent space structure.
 
 **DG does not increase under cell-view.** At $n = 3$, a +25.5% DG elevation appeared. At $n = 30$, this signal resolved to null ($p = 0.61$). Cell-view DG (0.568) is not significantly different from baseline (0.680).
 
@@ -95,7 +95,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Mean loss effects are highly significant.** Sign-only worsens mean loss by $+3.9\%$ ($p < 0.001$, $d = +5.696$), quantized by $+2.5\%$ ($p < 0.001$, $d = +4.457$), and noisy $\sigma = 0.1$ by $+2.4\%$ ($p < 0.001$, $d = +4.306$). The large Cohen's $d$ values (>4) indicate massive effects on the training trajectory.
 
-**Classification:** *Tolerance* — the system absorbs gradient noise up to a threshold ($\sigma = 0.01$). Above that threshold, degradation follows.
+**Classification:** *Pattern fidelity* — the interface tolerates mild gradient corruption ($\sigma = 0.01$) without losing access to the pattern; above that threshold, the interface degrades and the pattern manifests with decreasing fidelity.
 
 **Architecture constrains the solution space.** Despite the degradation, the worst-performing method (sign-only) still achieves loss within 5% of baseline. The residual stream, attention patterns, and MLP structure define a narrow enough solution manifold that even crude gradient approximations navigate it, with measurable cost.
 
@@ -123,7 +123,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Mean-loss effects exist for some windows.** Window=1 significantly worsens mean loss ($+0.4\%$, $p < 0.001$, $d = +1.847$). Window=4 significantly improves mean loss ($-0.1\%$, $p < 0.001$, $d = -0.735$) and window=8 improves it ($-0.0\%$, $p = 0.037$, $d = -0.400$). These effects are too small (<0.5%) to be practically meaningful.
 
-**Classification:** *Tolerance* — attention restriction at all tested scales is absorbed without meaningful final-loss change.
+**Classification:** *Pattern visibility* — restricting the attention window limits how much of the input the interface can see, yet the pattern remains accessible at all tested scales. The pattern does not require full-context visibility to manifest.
 
 **Window=16 is identical to baseline.** Full-context window (16 = block size) reproduces baseline values exactly, confirming no implementation artifacts.
 
@@ -152,7 +152,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **Cell-view shows only mean-loss effect.** Cell-view (0% gradient flow) does not significantly affect final loss ($-0.9\%$, $p = 0.237$, $d = -0.220$), consistent with Experiment 2. Mean loss shows a significant increase ($+0.8\%$, $p < 0.001$, $d = +1.302$).
 
-**Classification:** *Tolerance* — the system absorbs substantial reductions in inter-layer gradient flow. Even total removal of gradient flow (cell-view) reaches the same final loss.
+**Classification:** *Layerwise autonomy* — each layer can access its portion of the pattern with minimal inter-layer gradient communication. The pattern manifests even when the interface's internal coordination channels are severely attenuated.
 
 **The U-shape claim was ambiguous at $n = 3$.** At $n = 30$, it resolved: no partial-flow condition outperforms full backpropagation. The pilot U-shape was sampling noise at low resolution.
 
@@ -186,6 +186,8 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 **The chess prediction is inverted.** The chess paper predicts "cautious position, courageous moves" as optimal. In the transformer, gradient quality (the "move" analog) dominates: sign-only gradients degrade roughly twice as much as noisy gradients, regardless of forward perturbation type. The forward perturbation (the "position" analog) has a smaller effect.
 
+**Classification:** *Channel sensitivity* — the interface's access to the pattern is sensitive to gradient channel quality (sign structure) but not to forward-pass channel quality (noise vs. dropout). The pattern tolerates forward-pass perturbation but requires precise gradient signals to manifest faithfully.
+
 **Substrate-dependent interpretation.** Chess pieces operate in a discrete, irreversible action space where stable perception is essential. Transformers operate in a continuous, differentiable landscape where forward noise acts as regularization and gradient precision is needed for fine-grained optimization. The inversion is substrate-dependent.
 
 
@@ -210,7 +212,7 @@ Morphogenetic perturbation analysis of a minimal GPT, asking: does the system ex
 
 The near-completeness of recovery (ratio 1.0000 at $n = 30$, 1.0009 at $n = 300$) is notable: the optimizer prescribes convergence to *a* minimum, not necessarily to the *same* minimum after a detour through a constrained subspace. A more brittle system could recover to a different basin. This one returns to effectively the same endpoint with minimal path-dependence.
 
-**Classification:** *Emergent behavior* — path-independent recovery to near-identical final loss is not directly prescribed by the loss minimization objective.
+**Classification:** *Pattern re-binding / Free lunch* — after transient interface damage, the optimizer re-binds to the same pattern from the latent space. The near-complete recovery is a free lunch: the pattern persists in the latent space during the damage phase and the interface re-accesses it once constraints are lifted.
 
 **No overshoot.** Mean overshoot = $-0.0014 \pm 0.0015$ at $n = 30$, $-0.0009 \pm 0.0017$ at $n = 300$. The Levin signature — damaged organisms exceeding baseline — is absent. The recovery is near-complete but not excessive.
 
@@ -239,7 +241,7 @@ The near-completeness of recovery (ratio 1.0000 at $n = 30$, 1.0009 at $n = 300$
 
 The chimera result shows the basin of attraction is wide enough to absorb dramatically different starting conditions. SGD prescribes convergence; this is the expected behavior of the optimizer on a smooth loss landscape.
 
-**Classification:** *Basin geometry* — SGD re-finds the same minimum from any structurally valid starting point.
+**Classification:** *Basin universality / Pattern manifestation* — the pattern manifests regardless of how the interface is assembled. Chimeric interfaces composed from independently-trained components still access the same pattern, demonstrating that the pattern's availability in the latent space is universal across valid interface configurations.
 
 
 ## 10. Experiment 9: Gradual vs. Sudden Damage
@@ -261,9 +263,9 @@ The chimera result shows the basin of attraction is wide enough to absorb dramat
 
 **Gradual exposure builds tolerance.** The gradually-ramped condition shows no significant final-loss degradation ($p = 0.641$), while sudden exposure to the same peak noise level significantly degrades ($+2.4\%$, $p = 0.032$) and also strongly degrades mean loss ($+2.4\%$, $p < 0.001$, $d = +4.306$). The direct gradual-vs-sudden comparison is significant for final loss ($-2.1\%$, $p = 0.032$, $d = -0.412$) and significant for mean loss. At $n = 300$, the final-loss comparison strengthens further ($p = 0.0001$, $d = -0.227$).
 
-**This is the paper's clearest emergent behavior.** The gradient update rule is identical in the sudden and gradual conditions at every step — the only difference is the *history* of noise levels. That history matters, and the system develops different properties depending on it. The optimization objective does not specify how noise history should change the system's final state, but it does.
+**This is the paper's clearest demonstration of temporal pattern access.** The gradient update rule is identical in the sudden and gradual conditions at every step — the only difference is the *history* of noise levels. That history matters, and the interface develops different abilities to access the pattern depending on it. The optimization objective does not specify how noise history should change pattern access, but it does.
 
-**Classification:** *Emergent behavior* — the system develops differential tolerance based on perturbation history despite identical gradient update rules at every step.
+**Classification:** *Temporal pattern access / Free lunch* — the interface's history of perturbation exposure changes its ability to access the pattern. Gradual exposure allows the interface to maintain pattern access that sudden exposure disrupts. The history-dependent tolerance is a free lunch: the gradient update rule at each step is identical, yet the temporal ordering yields better pattern access.
 
 **Gradual noise acts as regularization.** The gradual condition's mean loss is *below* control ($-0.2\%$, $p < 0.001$, $d = -0.770$), suggesting the slowly-introduced noise serves as a regularizer.
 
@@ -290,7 +292,7 @@ The chimera result shows the basin of attraction is wide enough to absorb dramat
 
 The near-completeness of regeneration — particularly L1 at 1.046 and L2 at 1.015 — demonstrates that the network re-finds the same functional role regardless of what was there before. The optimizer prescribes convergence to a minimum; it does not prescribe that a rebuilt layer should reach the same functional role as if it had never been destroyed.
 
-**Classification:** *Emergent behavior* — near-complete layer regeneration to control-equivalent performance is not directly prescribed by the loss minimization objective.
+**Classification:** *Functional role patterns / Free lunch* — each layer's functional role is a pattern in the latent space that the interface re-accesses after destruction. The rebuilt layer converges to the same functional role because the pattern dictates what that position should compute — a free lunch from the latent space structure.
 
 **No layer is indispensable.** All layers regenerate to near-control performance regardless of position.
 
@@ -319,7 +321,7 @@ The near-completeness of regeneration — particularly L1 at 1.046 and L2 at 1.0
 
 The loss landscape is smooth enough that any reasonable starting point finds the minimum.
 
-**Classification:** *Basin geometry* — the basin is equally accessible from pre-trained and random initializations.
+**Classification:** *Context-dependent roles* — the functional role at each layer position is a pattern determined by the surrounding context, not by the transplanted weights. The donor layer's learned structure is irrelevant because the pattern that position must instantiate depends on the host network's context, not the donor's history.
 
 
 ## 13. Experiment 12: Competing Objectives
@@ -342,7 +344,7 @@ The loss landscape is smooth enough that any reasonable starting point finds the
 
 **Frozen components are tolerated.** Merely freezing those same layers causes negligible degradation ($+0.2\%$, $p = 0.462$). Competing vs. freeze: $p < 0.001$, $d = +0.693$.
 
-**Classification:** *Tolerance* for the freeze condition (absence is absorbed without prescription from SGD); the adversarial result is a boundary condition revealing the limits of tolerance.
+**Classification:** *Pattern corruption vs unavailability* — frozen layers make part of the interface unavailable, and the pattern still manifests through the remaining channels. Adversarial layers actively corrupt the interface, inverting the gradient signal and preventing the pattern from manifesting. The sharp line between absence and opposition marks the boundary between pattern fidelity and pattern corruption.
 
 **Sharp line between absence and opposition.** The architecture can handle absent layers (residual stream routes around them) but cannot compensate for layers actively working against the objective. This defines the architecture's tolerance limit.
 
@@ -351,58 +353,58 @@ The loss landscape is smooth enough that any reasonable starting point finds the
 
 Ten findings emerge from the combined evidence across twelve experiments at $n = 30$.
 
-### Finding 1: Emergent — gradual exposure builds tolerance (Exp 9)
+### Finding 1: Temporal pattern access — gradual exposure preserves pattern access (Exp 9)
 
-The paper's strongest emergent-behavior result. Gradual noise ramp (0→0.1) produces no significant final-loss degradation ($p = 0.641$), while sudden exposure to the same peak noise level significantly degrades ($+2.4\%$, $p = 0.032$) and strongly degrades mean loss ($+2.4\%$, $p < 0.001$, $d = +4.306$). The direct gradual-vs-sudden comparison is significant for final loss at $n = 30$ ($p = 0.032$, $d = -0.412$) and strengthens at $n = 300$ ($p = 0.0001$, $d = -0.227$). The gradient update rule is identical at every step; only the history differs. That history changes the system's final state.
+The paper's strongest result on temporal pattern access. Gradual noise ramp (0→0.1) produces no significant final-loss degradation ($p = 0.641$), while sudden exposure to the same peak noise level significantly degrades ($+2.4\%$, $p = 0.032$) and strongly degrades mean loss ($+2.4\%$, $p < 0.001$, $d = +4.306$). The direct gradual-vs-sudden comparison is significant for final loss at $n = 30$ ($p = 0.032$, $d = -0.412$) and strengthens at $n = 300$ ($p = 0.0001$, $d = -0.227$). The gradient update rule is identical at every step; only the history differs. That history changes the interface's ability to access the pattern.
 
-### Finding 2: Emergent — near-complete recovery, regeneration, and trajectory improvement (Exp 1, 7, 10)
+### Finding 2: Free lunch — pattern re-binding, regeneration, and interface simplification (Exp 1, 7, 10)
 
-The architecture recovers and rebuilds:
+The interface re-accesses patterns from the latent space after perturbation:
 - Damaged and recovered: final ratio 1.0000 ($p = 0.886$ vs control at $n = 30$); tiny residual at $n = 300$ ($p = 0.030$, ratio 1.0009)
 - Layer reset to random: $p > 0.17$ for all layers at $n = 30$ (near-complete regeneration); small residuals at $n = 300$ ($p < 0.04$ for all)
 - Head-freezing trajectory improvement: freeze 8 ($p < 0.001$, $d = -1.228$), freeze 12 ($p < 0.001$, $d = -1.366$)
 
-The optimizer prescribes convergence to a minimum; it does not prescribe returning to the same basin after damage or rebuilding a destroyed layer to equivalent performance.
+These are free lunches from the latent space: the pattern persists independently of the interface's state, and the interface re-binds to it after damage, rebuilds destroyed components to match it, or benefits from simplification that reduces interference with accessing it.
 
-### Finding 3: Basin geometry — chimeras, transplants, and local loss converge regardless (Exp 2, 8, 11)
+### Finding 3: Pattern manifestation — the pattern is accessible through diverse interfaces (Exp 2, 8, 11)
 
-The architecture converges to the same loss regardless of assembly history or optimization method:
+The same pattern manifests regardless of interface assembly history or optimization route:
 - Cell-view (local loss): final loss $p = 0.237$ at $n = 30$, $p = 0.90$ at $n = 300$ (equivalent convergence)
 - Chimeras from two models: $p > 0.26$ for all assemblies (BBAA marginal at $p = 0.076$)
 - Transplant vs random reset: $p = 0.880$ (no difference)
 
-The basin of attraction is wide enough to reach from dramatically different starting points and optimization methods.
+The pattern in the latent space is robust: it can be accessed from dramatically different interface configurations and through different optimization routes.
 
-### Finding 4: The absence vs. adversity distinction (Exp 12)
+### Finding 4: Pattern corruption vs unavailability (Exp 12)
 
-Frozen (inactive) layers: $+0.2\%$, $p = 0.462$ (tolerated). Adversarial (gradient-negated) layers: $+24.8\%$, $p < 0.001$ (degrading, $d = +0.689$). Competing vs. freeze: $p < 0.001$, $d = +0.693$. The architecture routes around silence but cannot defend against active sabotage.
+Frozen (inactive) layers: $+0.2\%$, $p = 0.462$ (pattern manifests despite unavailable interface components). Adversarial (gradient-negated) layers: $+24.8\%$, $p < 0.001$ (pattern corrupted, $d = +0.689$). Competing vs. freeze: $p < 0.001$, $d = +0.693$. The interface routes around absent channels but cannot resist active corruption that inverts the pattern.
 
-### Finding 5: The chess-paper inversion (Exp 3, 6)
+### Finding 5: Channel sensitivity — gradient channel dominates (Exp 3, 6)
 
-In the 2x2 factorial design, sign-only gradient conditions degrade final loss by $+5.2$–$6.5\%$ ($p \leq 0.002$) while noisy gradient conditions degrade by $+2.4$–$2.6\%$ ($p < 0.04$), regardless of forward perturbation type. Gradient type dominates — sign-only conditions show roughly double the degradation of noisy conditions — robustly inverting the chess paper's "cautious position, courageous moves" prediction. This is substrate-dependent: transformers require gradient precision; chess requires perceptual stability.
+In the 2x2 factorial design, sign-only gradient conditions degrade final loss by $+5.2$–$6.5\%$ ($p \leq 0.002$) while noisy gradient conditions degrade by $+2.4$–$2.6\%$ ($p < 0.04$), regardless of forward perturbation type. The interface's gradient channel is the critical pathway for pattern access — corrupting it degrades pattern fidelity roughly twice as much as corrupting the forward channel. This inverts the chess paper's "cautious position, courageous moves" prediction and is substrate-dependent.
 
-### Finding 6: Tolerance boundary (Exp 1-6)
+### Finding 6: Pattern fidelity boundary (Exp 1-6)
 
 | Perturbation | Final Loss Δ% | $p$-value | Classification |
 |---|---|---|---|
-| Freeze 1-4 heads | -0.1 to -0.5% | 0.001–0.253 | Basin geometry / emergent |
-| Cell-view (local loss) | -0.9% | 0.237 | Basin geometry |
-| Partial gradient flow (25-75%) | ±0.1% | >0.37 | Tolerance |
-| Noisy gradients (σ=0.01) | +0.1% | 0.843 | Tolerance |
-| Gradual noise ramp (0→0.1) | +0.3% | 0.641 | Emergent |
-| Frozen layers (L2-3) | +0.2% | 0.462 | Tolerance |
-| Noisy gradients (σ=0.1) | +2.4% | 0.032 | Degradation |
-| Sudden noise (σ=0.1) | +2.4% | 0.032 | Degradation |
-| Quantized 3-bit | +3.8% | 0.008 | Degradation |
-| Sign-only gradients | +5.0% | 0.002 | Degradation |
-| Adversarial layers | +24.8% | <0.001 | Severe degradation |
+| Freeze 1-4 heads | -0.1 to -0.5% | 0.001–0.253 | Interface simplification / Free lunch |
+| Cell-view (local loss) | -0.9% | 0.237 | Pattern invariance / Free lunch |
+| Partial gradient flow (25-75%) | ±0.1% | >0.37 | Layerwise autonomy |
+| Noisy gradients (σ=0.01) | +0.1% | 0.843 | Pattern fidelity (maintained) |
+| Gradual noise ramp (0→0.1) | +0.3% | 0.641 | Temporal pattern access / Free lunch |
+| Frozen layers (L2-3) | +0.2% | 0.462 | Pattern manifests (unavailability tolerated) |
+| Noisy gradients (σ=0.1) | +2.4% | 0.032 | Pattern fidelity (degraded) |
+| Sudden noise (σ=0.1) | +2.4% | 0.032 | Pattern fidelity (degraded) |
+| Quantized 3-bit | +3.8% | 0.008 | Pattern fidelity (degraded) |
+| Sign-only gradients | +5.0% | 0.002 | Pattern fidelity (degraded) |
+| Adversarial layers | +24.8% | <0.001 | Pattern corruption |
 
 
 ## 15. Scaling Resolution
 
 How signals changed as the resolution dial turned from $n = 3$ to $n = 30$ to $n = 300$.
 
-**Head freezing improves final loss (Exp 1):** At $n = 3$, the coarse signal showed a possible improvement. At $n = 30$, some final-loss improvements are now significant (freeze\_4 $p = 0.0014$, freeze\_12 $p = 0.0161$), and the mean trajectory improvement for 4+ heads is highly significant. At $n = 300$, all final-loss effects resolve to non-significant ($p > 0.15$), but the trajectory improvement strengthens to highly significant ($p < 0.0001$ for freeze 4, 8, 12, and 16), confirming this as a robust emergent-behavior signal. The final-loss signal at $n = 30$ was scale-dependent; the trajectory signal is robust across scales.
+**Head freezing improves final loss (Exp 1):** At $n = 3$, the coarse signal showed a possible improvement. At $n = 30$, some final-loss improvements are now significant (freeze\_4 $p = 0.0014$, freeze\_12 $p = 0.0161$), and the mean trajectory improvement for 4+ heads is highly significant. At $n = 300$, all final-loss effects resolve to non-significant ($p > 0.15$), but the trajectory improvement strengthens to highly significant ($p < 0.0001$ for freeze 4, 8, 12, and 16), confirming this as a robust free-lunch signal (interface simplification). The final-loss signal at $n = 30$ was scale-dependent; the trajectory signal is robust across scales.
 
 **DG scales with perturbation:** At $n = 3$, DG appeared to scale with perturbation severity. At $n = 30$, this resolved to null across all conditions ($p > 0.16$). The DG metric captures stochastic SGD dynamics but not perturbation response. At $n = 300$, the DG null holds. No fine structure emerges even at 10x power. DG does not track perturbation.
 
@@ -419,47 +421,47 @@ How signals changed as the resolution dial turned from $n = 3$ to $n = 30$ to $n
 **Gradual vs. sudden damage (Exp 9):** At $n = 3$, the signal was ambiguous. At $n = 30$, gradual shows no significant final-loss degradation ($p = 0.641$) and shows mean-loss improvement ($-0.2\%$, $p < 0.001$); the direct gradual-vs-sudden comparison is significant for final loss ($p = 0.032$, $d = -0.412$) and for mean loss. At $n = 300$, the effect strengthens: the gradual-vs-sudden final-loss gap reaches $p = 0.0001$ ($d = -0.227$). The stress inoculation signal is already significant at $n = 30$ and strengthens at $n = 300$. This is the paper's most robust cross-scale confirmation.
 
 
-## 16. Findings — What Perturbation Revealed
+## 16. Findings — What Perturbation Revealed About Pattern Access
 
-### Emergent Behaviors
+### Free Lunch — What the Interface Gets Without Paying
 
-**1. Gradual stress builds tolerance (Exp 9).** The only experiment where the *manner* of perturbation application matters. Gradual noise ramp: $p = 0.641$ vs control (final loss). Sudden noise: $p = 0.032$ (final loss), $p < 0.001$ (mean loss, $d = +4.306$). Direct gradual-vs-sudden: significant at $n = 30$ ($p = 0.032$, $d = -0.412$), strengthening at $n = 300$ ($p = 0.0001$). The gradient update rule is identical at every step; only the history differs. That history changes the system's final state.
+**1. Temporal pattern access through gradual exposure (Exp 9).** The only experiment where the *manner* of perturbation application matters. Gradual noise ramp: $p = 0.641$ vs control (final loss). Sudden noise: $p = 0.032$ (final loss), $p < 0.001$ (mean loss, $d = +4.306$). Direct gradual-vs-sudden: significant at $n = 30$ ($p = 0.032$, $d = -0.412$), strengthening at $n = 300$ ($p = 0.0001$). The gradient update rule is identical at every step; only the history differs. That history changes the interface's ability to access the pattern — a free lunch from temporal ordering.
 
-**2. Near-complete recovery (Exp 7).** A model damaged during training recovers to near-identical final loss ($p = 0.886$, ratio 1.0000 at $n = 30$). All 30 runs recovered within a mean of 1 step. At $n = 300$, a tiny but significant residual emerges ($p = 0.030$, ratio 1.0009).
+**2. Pattern re-binding after damage (Exp 7).** A model damaged during training re-binds to the same pattern, recovering to near-identical final loss ($p = 0.886$, ratio 1.0000 at $n = 30$). All 30 runs recovered within a mean of 1 step. At $n = 300$, a tiny but significant residual emerges ($p = 0.030$, ratio 1.0009). The pattern persists in the latent space during damage.
 
-**3. Near-complete regeneration (Exp 10).** Any layer can be destroyed and rebuilt to control-equivalent performance ($p > 0.17$ for all layers at $n = 30$). At $n = 300$, small residuals emerge ($p < 0.04$ for all). The network re-finds the same functional role regardless of what was there before.
+**3. Functional role pattern regeneration (Exp 10).** Any layer can be destroyed and the interface re-accesses the same functional role pattern ($p > 0.17$ for all layers at $n = 30$). At $n = 300$, small residuals emerge ($p < 0.04$ for all). Each layer position's role is dictated by the latent pattern, not the weights.
 
-**4. Head-freezing trajectory improvement (Exp 1).** Freezing 4+ randomly-initialized heads produces small but statistically robust mean-trajectory improvements (freeze 8: $p < 0.001$, $d = -1.228$; freeze 12: $p < 0.001$, $d = -1.366$). Frozen random-projection heads reduce gradient interference.
+**4. Interface simplification benefit (Exp 1).** Freezing 4+ randomly-initialized heads produces small but statistically robust mean-trajectory improvements (freeze 8: $p < 0.001$, $d = -1.228$; freeze 12: $p < 0.001$, $d = -1.366$). Simplifying the interface (fewer trainable parameters) reduces interference with pattern access.
 
-### Basin Geometry
+### Pattern Manifestation — The Pattern Accessed Through Diverse Interfaces
 
-**5. Local loss equivalence (Exp 2).** Cell-view (local loss) achieves the same final loss as end-to-end backpropagation ($p = 0.237$ at $n = 30$, $p = 0.90$ at $n = 300$). The local loss objective finds the same basin through different optimization geometry.
+**5. Pattern invariance through local loss (Exp 2).** Cell-view (local loss) achieves the same final loss as end-to-end backpropagation ($p = 0.237$ at $n = 30$, $p = 0.90$ at $n = 300$). The pattern is accessible through radically different optimization interfaces.
 
-**6. Chimera convergence (Exp 8).** Models assembled from parts of two independently-trained networks converge to the same final loss as undamaged continuation ($p > 0.26$ for all chimera types; BBAA marginal at $p = 0.076$). The basin of attraction is wide enough to reach from dramatically different starting points.
+**6. Basin universality through chimera assembly (Exp 8).** Models assembled from parts of two independently-trained networks converge to the same final loss as undamaged continuation ($p > 0.26$ for all chimera types; BBAA marginal at $p = 0.076$). The pattern manifests regardless of how the interface is assembled.
 
-**7. Transplant indifference (Exp 11).** Transplanted layers and randomly-reset layers converge to the same final loss ($p = 0.880$ overall). The basin is equally accessible from pre-trained and random initializations.
+**7. Context-dependent roles override donor history (Exp 11).** Transplanted layers and randomly-reset layers converge to the same final loss ($p = 0.880$ overall). The pattern that each position must instantiate is determined by the host context, not the donor's learned weights.
 
-### Tolerance
+### Pattern Fidelity and Corruption
 
-**8. Gradient quality matters more than quantity (Exp 3, 5).** Reducing gradient precision (sign-only: $d = +5.696$ for mean loss) degrades more than reducing gradient magnitude (partial flow: all NS for mean loss) or completeness (freezing: trajectory improves). The architecture tolerates magnitude reduction but not sign-structure destruction.
+**8. Gradient channel is the critical pathway (Exp 3, 5).** Reducing gradient precision (sign-only: $d = +5.696$ for mean loss) degrades pattern fidelity more than reducing gradient magnitude (partial flow: all NS for mean loss) or completeness (freezing: trajectory improves). The interface tolerates magnitude reduction but not sign-structure corruption in its gradient channel.
 
-**9. The gradient-type dominance (Exp 3, 6).** In the 2x2 factorial, sign-only gradient conditions degrade by $+5.2$–$6.5\%$ while noisy gradient conditions degrade by $+2.4$–$2.6\%$, regardless of forward perturbation. All four conditions are significant ($p < 0.04$), but sign-only shows roughly double the effect. This inverts the chess paper's "cautious position, courageous moves" prediction — substrate-dependent.
+**9. Channel sensitivity — gradient dominates forward (Exp 3, 6).** In the 2x2 factorial, sign-only gradient conditions degrade by $+5.2$–$6.5\%$ while noisy gradient conditions degrade by $+2.4$–$2.6\%$, regardless of forward perturbation. The gradient channel is the interface's primary pathway for accessing the pattern. This inverts the chess paper's "cautious position, courageous moves" prediction — substrate-dependent.
 
-**10. Adversarial vs. inactive tolerance (Exp 12).** Frozen layers cost nothing ($p = 0.462$); adversarial layers cost $+24.8\%$ ($p < 0.001$). The architecture tolerates absence but not opposition.
+**10. Pattern corruption vs unavailability (Exp 12).** Frozen layers cost nothing ($p = 0.462$) — the pattern manifests through remaining channels. Adversarial layers cost $+24.8\%$ ($p < 0.001$) — active corruption inverts the pattern. The interface routes around absent components but cannot resist active corruption.
 
 
 ## 17. Interpretive Lenses
 
 The empirical findings admit several interpretive framings beyond the neutral classification used above. These are not claims; they are ways of reading the results.
 
-**Lens 1: Freedom from the algorithm.** One can frame the emergent behaviors as "freedom" — behaviors the optimizer didn't prescribe but the system exhibits anyway. Under this reading, SGD says "minimize loss"; it does not say "build tolerance through gradual exposure," "recover completely from damage," or "rebuild a destroyed layer to the same functional role." Stress inoculation is the strongest case: the gradient update rule is identical at every step, yet the system's final state depends on perturbation history. Recovery and regeneration are weaker cases — one could argue they are also basin geometry effects. The classification boundary between "emergent" and "basin geometry" is itself a question, not a settled fact.
+**Lens 1: Platonic Space (Levin, 2026).** The optimizer is an interface through which patterns from a latent space manifest. Under this reading, the experiments probe the interface's robustness: free lunch phenomena (stress inoculation, recovery, regeneration, interface simplification) reveal what the system gets from the latent space structure without the optimizer paying for it. Pattern fidelity experiments reveal how much interface degradation the pattern tolerates. Pattern corruption (adversarial layers) marks the boundary where the interface actively misleads, preventing pattern access. The classification boundary between "pattern manifestation" and "free lunch" reflects whether the pattern's accessibility is inherent to the latent space structure or depends on temporal properties of the interface.
 
-**Lens 2: Morphogenetic competency (Levin).** Levin et al. (2024) proposed that computational systems can exhibit morphogenetic competencies analogous to biological development. Under this reading, stress inoculation is analogous to biological stress hardening, regeneration to tissue regeneration, chimera convergence to chimeric organism development. The system exhibits minimal cognitive competencies — stress tolerance, regeneration, recovery — that are not specified by the optimization algorithm but emerge from the interaction of components under perturbation. The DG null (no perturbation response at any scale) is a point of divergence: biological systems show richer compensatory rerouting than this minimal transformer.
+**Lens 2: Morphogenetic competency (Levin, 2024).** Levin et al. (2024) proposed that computational systems can exhibit morphogenetic competencies analogous to biological development. Under this reading, stress inoculation is analogous to biological stress hardening, regeneration to tissue regeneration, chimera convergence to chimeric organism development. The system exhibits minimal cognitive competencies — stress tolerance, regeneration, recovery — that are not specified by the optimization algorithm but emerge from the interaction of components under perturbation. The DG null (no perturbation response at any scale) is a point of divergence: biological systems show richer compensatory rerouting than this minimal transformer.
 
 
 ## 18. Limitations
 
-- **Scale:** 4 layers, 16 dimensions, 16 heads, ~13,400 params. The emergent behaviors (stress inoculation, recovery, regeneration) may be specific to small models, or they may be architectural universals.
+- **Scale:** 4 layers, 16 dimensions, 16 heads, ~13,400 params. The free-lunch phenomena (stress inoculation, recovery, regeneration) may be specific to small models, or they may be architectural universals.
 - **Task complexity:** Character-level name generation is a toy task. Whether stress inoculation appears in language modeling or other complex tasks is not established.
 - **Training duration:** 200 steps per phase. Gradual-exposure tolerance may not persist at longer horizons.
 - **Transplant design:** Both models trained on same task/data. Cross-task transplantation might show different results.

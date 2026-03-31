@@ -2,7 +2,7 @@
 # dependencies = ["matplotlib", "numpy"]
 # ///
 """
-MorphoGPT — Quick Run Script
+Faultization GPT — Pattern-Access Experiment Runner
 
 Uses the numpy backend (model) for ~1000x speedup over scalar autograd.
 
@@ -1606,7 +1606,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='MorphoGPT: Morphogenetic perturbation experiments on a minimal transformer.'
+        description='Faultization GPT: Pattern-access perturbation experiments on a minimal transformer.'
     )
     sub = parser.add_subparsers(dest='command', help='Command to run')
 

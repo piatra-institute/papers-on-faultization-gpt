@@ -2,7 +2,7 @@
 # dependencies = ["numpy", "scipy"]
 # ///
 """
-Paired statistical analysis of all experiments (n=30).
+Faultization GPT — Paired statistical analysis of all experiments (n=30).
 Uses paired t-tests (matching seeds across conditions) and
 independent t-tests where appropriate.
 """
@@ -1203,14 +1203,14 @@ def cross_scale_summary():
 
 
 def behavioral_classification():
-    """Classify findings by behavioral category (emergent / basin geometry / tolerance)."""
+    """Classify findings by behavioral category (free lunch / pattern manifestation / pattern fidelity and corruption)."""
     print("\n" + "=" * 70)
     print("BEHAVIORAL CLASSIFICATION at n=300")
     print("=" * 70)
 
     suffix = '_n300'
 
-    print("\n=== EMERGENT BEHAVIORS (not directly prescribed by the optimizer) ===\n")
+    print("\n=== FREE LUNCH (not directly prescribed by the optimizer) ===\n")
 
     # Exp 9: Stress inoculation
     try:
@@ -1275,7 +1275,7 @@ def behavioral_classification():
     except FileNotFoundError:
         print(f"  Exp 1 — no n=300 data")
 
-    print("\n=== BASIN GEOMETRY (expected optimizer behavior on this landscape) ===\n")
+    print("\n=== PATTERN MANIFESTATION (expected optimizer behavior on this landscape) ===\n")
 
     # Exp 8: Chimera
     try:
@@ -1305,7 +1305,7 @@ def behavioral_classification():
     except FileNotFoundError:
         print(f"  Exp 11 — no n=300 data")
 
-    print("\n=== TOLERANCE (system absorbs perturbation without meaningful degradation) ===\n")
+    print("\n=== PATTERN FIDELITY AND CORRUPTION (system absorbs perturbation without meaningful degradation) ===\n")
 
     # Exp 3: Gradient degradation
     try:
