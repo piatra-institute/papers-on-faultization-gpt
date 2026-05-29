@@ -1,0 +1,932 @@
+[
+  {
+    "seed": 42,
+    "pre_reset_loss": 3.038757760157547,
+    "control_final_loss": 2.590367455300213,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.3139508333628642,
+        "regen_final_loss": 2.588863523402316,
+        "completeness": 1.0,
+        "damage": -0.7248069267946828
+      },
+      "1": {
+        "post_reset_loss": 2.3466465438007376,
+        "regen_final_loss": 2.612434916963361,
+        "completeness": 1.0,
+        "damage": -0.6921112163568095
+      },
+      "2": {
+        "post_reset_loss": 2.3459088724469352,
+        "regen_final_loss": 2.5871507491049357,
+        "completeness": 1.0,
+        "damage": -0.6928488877106118
+      },
+      "3": {
+        "post_reset_loss": 2.3006739437264554,
+        "regen_final_loss": 2.5890236482843796,
+        "completeness": 1.0,
+        "damage": -0.7380838164310917
+      }
+    }
+  },
+  {
+    "seed": 43,
+    "pre_reset_loss": 2.514247177667882,
+    "control_final_loss": 1.9551980775181164,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.1947785783817677,
+        "regen_final_loss": 2.0280297655812123,
+        "completeness": 0.8892286166206228,
+        "damage": -0.31946859928611415
+      },
+      "1": {
+        "post_reset_loss": 2.176154273949309,
+        "regen_final_loss": 1.9772607496154173,
+        "completeness": 0.9610801644306075,
+        "damage": -0.3380929037185729
+      },
+      "2": {
+        "post_reset_loss": 2.142041471292362,
+        "regen_final_loss": 1.9731273231252349,
+        "completeness": 0.9729401167301587,
+        "damage": -0.37220570637552
+      },
+      "3": {
+        "post_reset_loss": 2.1139652213213904,
+        "regen_final_loss": 1.9739208583926466,
+        "completeness": 0.969418937305319,
+        "damage": -0.40028195634649144
+      }
+    }
+  },
+  {
+    "seed": 44,
+    "pre_reset_loss": 2.3740804359906464,
+    "control_final_loss": 3.163572375377203,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.658000379901875,
+        "regen_final_loss": 3.1990175301682204,
+        "completeness": 1.0,
+        "damage": 0.28391994391122877
+      },
+      "1": {
+        "post_reset_loss": 2.6846340905356376,
+        "regen_final_loss": 3.177649123831528,
+        "completeness": 1.0,
+        "damage": 0.3105536545449912
+      },
+      "2": {
+        "post_reset_loss": 2.6770999881685524,
+        "regen_final_loss": 3.1469771537639444,
+        "completeness": 1.0,
+        "damage": 0.303019552177906
+      },
+      "3": {
+        "post_reset_loss": 2.6729205406101166,
+        "regen_final_loss": 3.177962839201335,
+        "completeness": 1.0,
+        "damage": 0.2988401046194702
+      }
+    }
+  },
+  {
+    "seed": 45,
+    "pre_reset_loss": 2.534229726102303,
+    "control_final_loss": 2.3064518916117045,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.210372189703787,
+        "regen_final_loss": 2.2858716924028366,
+        "completeness": 1.1112761295541422,
+        "damage": -0.3238575363985161
+      },
+      "1": {
+        "post_reset_loss": 2.1890523584456636,
+        "regen_final_loss": 2.286022168997936,
+        "completeness": 1.1274580748487273,
+        "damage": -0.3451773676566394
+      },
+      "2": {
+        "post_reset_loss": 2.1501351419016355,
+        "regen_final_loss": 2.304984442326902,
+        "completeness": 1.007446751187816,
+        "damage": -0.38409458420066755
+      },
+      "3": {
+        "post_reset_loss": 2.2459055717544123,
+        "regen_final_loss": 2.306088324339093,
+        "completeness": 1.0021443019725014,
+        "damage": -0.2883241543478907
+      }
+    }
+  },
+  {
+    "seed": 46,
+    "pre_reset_loss": 2.2224234531348697,
+    "control_final_loss": 3.0520833877564124,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.7172405103199417,
+        "regen_final_loss": 3.1481520905509948,
+        "completeness": 1.0,
+        "damage": 0.4948170571850721
+      },
+      "1": {
+        "post_reset_loss": 2.7911863872940947,
+        "regen_final_loss": 3.0621019887272745,
+        "completeness": 1.0,
+        "damage": 0.5687629341592251
+      },
+      "2": {
+        "post_reset_loss": 2.783910957543683,
+        "regen_final_loss": 3.0213356657328427,
+        "completeness": 1.0,
+        "damage": 0.5614875044088135
+      },
+      "3": {
+        "post_reset_loss": 2.7749277098383165,
+        "regen_final_loss": 3.05953086900098,
+        "completeness": 1.0,
+        "damage": 0.5525042567034468
+      }
+    }
+  },
+  {
+    "seed": 47,
+    "pre_reset_loss": 2.4564763475635853,
+    "control_final_loss": 2.5540828125430486,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.2798571137884,
+        "regen_final_loss": 2.5529601537540514,
+        "completeness": 1.013702374179648,
+        "damage": -0.1766192337751855
+      },
+      "1": {
+        "post_reset_loss": 2.2915076363078426,
+        "regen_final_loss": 2.5228587565406184,
+        "completeness": 1.9116271193311083,
+        "damage": -0.16496871125574275
+      },
+      "2": {
+        "post_reset_loss": 2.260125259148487,
+        "regen_final_loss": 2.52284181649414,
+        "completeness": 1.5535936214282817,
+        "damage": -0.1963510884150983
+      },
+      "3": {
+        "post_reset_loss": 2.2989258999923408,
+        "regen_final_loss": 2.540180052029222,
+        "completeness": 1.2365276063633162,
+        "damage": -0.1575504475712446
+      }
+    }
+  },
+  {
+    "seed": 48,
+    "pre_reset_loss": 2.3735114218343933,
+    "control_final_loss": 2.2676686653957385,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.4734962297344594,
+        "regen_final_loss": 2.2921183999212023,
+        "completeness": 0.9554946892937584,
+        "damage": 0.09998480790006603
+      },
+      "1": {
+        "post_reset_loss": 2.441345048229523,
+        "regen_final_loss": 2.2496293318309353,
+        "completeness": 1.033730113707341,
+        "damage": 0.0678336263951298
+      },
+      "2": {
+        "post_reset_loss": 2.4847481014429653,
+        "regen_final_loss": 2.287886802457859,
+        "completeness": 0.9612203335379911,
+        "damage": 0.11123667960857198
+      },
+      "3": {
+        "post_reset_loss": 2.4385068615901924,
+        "regen_final_loss": 2.2700115313650033,
+        "completeness": 0.995540872512895,
+        "damage": 0.06499543975579902
+      }
+    }
+  },
+  {
+    "seed": 49,
+    "pre_reset_loss": 2.84894203372318,
+    "control_final_loss": 2.623956472148999,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.3444090134011843,
+        "regen_final_loss": 2.6674471133002315,
+        "completeness": 1.0,
+        "damage": -0.5045330203219955
+      },
+      "1": {
+        "post_reset_loss": 2.3485542842316103,
+        "regen_final_loss": 2.6106631519041295,
+        "completeness": 1.0,
+        "damage": -0.5003877494915696
+      },
+      "2": {
+        "post_reset_loss": 2.3013623084206674,
+        "regen_final_loss": 2.6619327453713995,
+        "completeness": 1.0,
+        "damage": -0.5475797253025125
+      },
+      "3": {
+        "post_reset_loss": 2.299925542516185,
+        "regen_final_loss": 2.6601677060465336,
+        "completeness": 1.0,
+        "damage": -0.549016491206995
+      }
+    }
+  },
+  {
+    "seed": 50,
+    "pre_reset_loss": 2.8534453909967135,
+    "control_final_loss": 2.7166910874740324,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.155137889670473,
+        "regen_final_loss": 2.7238553590297734,
+        "completeness": 1.0,
+        "damage": -0.6983075013262403
+      },
+      "1": {
+        "post_reset_loss": 2.133703120616017,
+        "regen_final_loss": 2.752258224760426,
+        "completeness": 1.0,
+        "damage": -0.7197422703806966
+      },
+      "2": {
+        "post_reset_loss": 2.04737553070328,
+        "regen_final_loss": 2.7010346396713847,
+        "completeness": 1.0,
+        "damage": -0.8060698602934333
+      },
+      "3": {
+        "post_reset_loss": 2.143081814057794,
+        "regen_final_loss": 2.729893172772235,
+        "completeness": 1.0,
+        "damage": -0.7103635769389194
+      }
+    }
+  },
+  {
+    "seed": 51,
+    "pre_reset_loss": 2.5302097411861935,
+    "control_final_loss": 2.765698051643464,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.5300890734077264,
+        "regen_final_loss": 2.772774016586062,
+        "completeness": 1.0,
+        "damage": -0.00012066777846708732
+      },
+      "1": {
+        "post_reset_loss": 2.5009174629726334,
+        "regen_final_loss": 2.729768070517651,
+        "completeness": 1.0,
+        "damage": -0.029292278213560063
+      },
+      "2": {
+        "post_reset_loss": 2.49887280687618,
+        "regen_final_loss": 2.750421770968576,
+        "completeness": 1.0,
+        "damage": -0.03133693431001339
+      },
+      "3": {
+        "post_reset_loss": 2.4878594830694283,
+        "regen_final_loss": 2.7744757256261976,
+        "completeness": 1.0,
+        "damage": -0.04235025811676518
+      }
+    }
+  },
+  {
+    "seed": 52,
+    "pre_reset_loss": 2.4709310804325253,
+    "control_final_loss": 2.1026806880315374,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.424193390321227,
+        "regen_final_loss": 2.1081976126597413,
+        "completeness": 0.9934738589139966,
+        "damage": -0.046737690111298136
+      },
+      "1": {
+        "post_reset_loss": 2.3698002239237583,
+        "regen_final_loss": 2.0931764504649477,
+        "completeness": 1.0110231798136629,
+        "damage": -0.10113085650876696
+      },
+      "2": {
+        "post_reset_loss": 2.2760374892813693,
+        "regen_final_loss": 2.1231930811092017,
+        "completeness": 0.9750343030661971,
+        "damage": -0.194893591151156
+      },
+      "3": {
+        "post_reset_loss": 2.300041153211007,
+        "regen_final_loss": 2.083283641765065,
+        "completeness": 1.0223052010780436,
+        "damage": -0.17088992722151808
+      }
+    }
+  },
+  {
+    "seed": 53,
+    "pre_reset_loss": 2.144246480070316,
+    "control_final_loss": 2.2400440902591647,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.5006830967048734,
+        "regen_final_loss": 2.2590857013287358,
+        "completeness": 0.9538900297268514,
+        "damage": 0.3564366166345576
+      },
+      "1": {
+        "post_reset_loss": 2.577297072836529,
+        "regen_final_loss": 2.248400964692534,
+        "completeness": 0.9805730292355793,
+        "damage": 0.43305059276621316
+      },
+      "2": {
+        "post_reset_loss": 2.597150367916014,
+        "regen_final_loss": 2.250598503026873,
+        "completeness": 0.9787782658086817,
+        "damage": 0.45290388784569835
+      },
+      "3": {
+        "post_reset_loss": 2.6169422901502704,
+        "regen_final_loss": 2.2426343018179278,
+        "completeness": 0.9946655569626046,
+        "damage": 0.47269581007995454
+      }
+    }
+  },
+  {
+    "seed": 54,
+    "pre_reset_loss": 2.009284240299337,
+    "control_final_loss": 2.739551267425953,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.3511272138901553,
+        "regen_final_loss": 2.820173299595382,
+        "completeness": 1.0,
+        "damage": 0.3418429735908184
+      },
+      "1": {
+        "post_reset_loss": 2.3603229375782213,
+        "regen_final_loss": 2.759972961341905,
+        "completeness": 1.0,
+        "damage": 0.35103869727888437
+      },
+      "2": {
+        "post_reset_loss": 2.386862058316371,
+        "regen_final_loss": 2.729622036171673,
+        "completeness": 1.0,
+        "damage": 0.37757781801703416
+      },
+      "3": {
+        "post_reset_loss": 2.3388838865965833,
+        "regen_final_loss": 2.7935131518417444,
+        "completeness": 1.0,
+        "damage": 0.32959964629724636
+      }
+    }
+  },
+  {
+    "seed": 55,
+    "pre_reset_loss": 2.679389850688581,
+    "control_final_loss": 3.208840501297455,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.812349702126877,
+        "regen_final_loss": 3.1099397156630118,
+        "completeness": 1.0,
+        "damage": 0.13295985143829592
+      },
+      "1": {
+        "post_reset_loss": 2.812714227571256,
+        "regen_final_loss": 3.228134929516224,
+        "completeness": 1.0,
+        "damage": 0.1333243768826753
+      },
+      "2": {
+        "post_reset_loss": 2.76706268499373,
+        "regen_final_loss": 3.198857853699211,
+        "completeness": 1.0,
+        "damage": 0.08767283430514894
+      },
+      "3": {
+        "post_reset_loss": 2.7052327862163996,
+        "regen_final_loss": 3.194001134847924,
+        "completeness": 1.0,
+        "damage": 0.02584293552781869
+      }
+    }
+  },
+  {
+    "seed": 56,
+    "pre_reset_loss": 2.503082097476412,
+    "control_final_loss": 2.32171932091696,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.4650994059874844,
+        "regen_final_loss": 2.298570274899162,
+        "completeness": 1.522777115078468,
+        "damage": -0.03798269148892741
+      },
+      "1": {
+        "post_reset_loss": 2.4783959928316652,
+        "regen_final_loss": 2.286743563512571,
+        "completeness": 1.7763650300864056,
+        "damage": -0.02468610464474663
+      },
+      "2": {
+        "post_reset_loss": 2.450719610367602,
+        "regen_final_loss": 2.303793841185153,
+        "completeness": 1.3729400463622803,
+        "damage": -0.05236248710880975
+      },
+      "3": {
+        "post_reset_loss": 2.4253806486801084,
+        "regen_final_loss": 2.3089422377157662,
+        "completeness": 1.0,
+        "damage": -0.07770144879630347
+      }
+    }
+  },
+  {
+    "seed": 57,
+    "pre_reset_loss": 2.4116471556249586,
+    "control_final_loss": 1.862392650108083,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.5359574758148105,
+        "regen_final_loss": 1.9018550832535581,
+        "completeness": 0.9470481038427551,
+        "damage": 0.12431032018985189
+      },
+      "1": {
+        "post_reset_loss": 2.5764793874389107,
+        "regen_final_loss": 1.8758209054882682,
+        "completeness": 0.9793478075976898,
+        "damage": 0.16483223181395212
+      },
+      "2": {
+        "post_reset_loss": 2.573451883303722,
+        "regen_final_loss": 1.8415222607622,
+        "completeness": 1.0379286927095488,
+        "damage": 0.16180472767876353
+      },
+      "3": {
+        "post_reset_loss": 2.6733101666984527,
+        "regen_final_loss": 1.838914242643779,
+        "completeness": 1.0416801587026636,
+        "damage": 0.2616630110734941
+      }
+    }
+  },
+  {
+    "seed": 58,
+    "pre_reset_loss": 2.1784346244922412,
+    "control_final_loss": 2.7056755227849827,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.249715067653953,
+        "regen_final_loss": 2.658585826910342,
+        "completeness": 1.0,
+        "damage": 0.07128044316171156
+      },
+      "1": {
+        "post_reset_loss": 2.20149858924746,
+        "regen_final_loss": 2.7236579892504262,
+        "completeness": 1.0,
+        "damage": 0.02306396475521888
+      },
+      "2": {
+        "post_reset_loss": 2.2427485182608935,
+        "regen_final_loss": 2.7096191272733057,
+        "completeness": 1.0,
+        "damage": 0.06431389376865226
+      },
+      "3": {
+        "post_reset_loss": 2.236281599200996,
+        "regen_final_loss": 2.732437682404285,
+        "completeness": 1.0,
+        "damage": 0.05784697470875466
+      }
+    }
+  },
+  {
+    "seed": 59,
+    "pre_reset_loss": 2.4665565394789706,
+    "control_final_loss": 2.0811019656616394,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.513743068651497,
+        "regen_final_loss": 2.0521737330239227,
+        "completeness": 1.0820917495273394,
+        "damage": 0.04718652917252664
+      },
+      "1": {
+        "post_reset_loss": 2.486880998152171,
+        "regen_final_loss": 2.0725965518699483,
+        "completeness": 1.0260413199048763,
+        "damage": 0.02032445867320032
+      },
+      "2": {
+        "post_reset_loss": 2.4737863660119426,
+        "regen_final_loss": 2.1205771576883805,
+        "completeness": 0.8727760951876407,
+        "damage": 0.007229826532971995
+      },
+      "3": {
+        "post_reset_loss": 2.5627997215082354,
+        "regen_final_loss": 2.0498998846737027,
+        "completeness": 1.0898004401756598,
+        "damage": 0.09624318202926485
+      }
+    }
+  },
+  {
+    "seed": 60,
+    "pre_reset_loss": 3.0972658635092527,
+    "control_final_loss": 2.3977558175068645,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.2712599882290103,
+        "regen_final_loss": 2.370140816021349,
+        "completeness": 1.0,
+        "damage": -0.8260058752802424
+      },
+      "1": {
+        "post_reset_loss": 2.207601011065219,
+        "regen_final_loss": 2.3986702413777956,
+        "completeness": 1.0,
+        "damage": -0.8896648524440338
+      },
+      "2": {
+        "post_reset_loss": 2.1957982990644704,
+        "regen_final_loss": 2.4053361490437544,
+        "completeness": 1.0,
+        "damage": -0.9014675644447823
+      },
+      "3": {
+        "post_reset_loss": 2.241634336757323,
+        "regen_final_loss": 2.3726496462193425,
+        "completeness": 1.0,
+        "damage": -0.8556315267519299
+      }
+    }
+  },
+  {
+    "seed": 61,
+    "pre_reset_loss": 2.9002281060438406,
+    "control_final_loss": 2.658141652073655,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.4977028450309264,
+        "regen_final_loss": 2.647690600311428,
+        "completeness": 1.0301380766036818,
+        "damage": -0.4025252610129142
+      },
+      "1": {
+        "post_reset_loss": 2.5470234156718936,
+        "regen_final_loss": 2.65749747396129,
+        "completeness": 1.0019628467789743,
+        "damage": -0.353204690371947
+      },
+      "2": {
+        "post_reset_loss": 2.7063297163471174,
+        "regen_final_loss": 2.6300831510119966,
+        "completeness": 1.0533915563004699,
+        "damage": -0.19389838969672324
+      },
+      "3": {
+        "post_reset_loss": 2.6233662977409407,
+        "regen_final_loss": 2.624068719207493,
+        "completeness": 1.058634369180853,
+        "damage": -0.27686180830289997
+      }
+    }
+  },
+  {
+    "seed": 62,
+    "pre_reset_loss": 2.2586427105737297,
+    "control_final_loss": 1.9513393593977286,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.4005055485520175,
+        "regen_final_loss": 1.9824244699791351,
+        "completeness": 0.8562884566290508,
+        "damage": 0.1418628379782878
+      },
+      "1": {
+        "post_reset_loss": 2.348981118458103,
+        "regen_final_loss": 1.9533498094670956,
+        "completeness": 0.9855894731022721,
+        "damage": 0.09033840788437342
+      },
+      "2": {
+        "post_reset_loss": 2.345550274009279,
+        "regen_final_loss": 1.9641654983395804,
+        "completeness": 0.8212862384526228,
+        "damage": 0.0869075634355494
+      },
+      "3": {
+        "post_reset_loss": 2.3770782224322926,
+        "regen_final_loss": 1.9648446077389814,
+        "completeness": 0.8872977598049478,
+        "damage": 0.11843551185856294
+      }
+    }
+  },
+  {
+    "seed": 63,
+    "pre_reset_loss": 3.393909593958057,
+    "control_final_loss": 2.5720438073494134,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.5478784471266347,
+        "regen_final_loss": 2.569008083083005,
+        "completeness": 1.0954048967180867,
+        "damage": -0.8460311468314221
+      },
+      "1": {
+        "post_reset_loss": 2.540025597102191,
+        "regen_final_loss": 2.6023179339993083,
+        "completeness": 0.6656655393518329,
+        "damage": -0.853883996855866
+      },
+      "2": {
+        "post_reset_loss": 2.5543415556031905,
+        "regen_final_loss": 2.5926539039384715,
+        "completeness": 0.6980083307583607,
+        "damage": -0.8395680383548663
+      },
+      "3": {
+        "post_reset_loss": 2.4740247934400688,
+        "regen_final_loss": 2.601588670026819,
+        "completeness": 0.5503187033212583,
+        "damage": -0.919884800517988
+      }
+    }
+  },
+  {
+    "seed": 64,
+    "pre_reset_loss": 2.434547730896259,
+    "control_final_loss": 2.3668485594524675,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.4636687254954377,
+        "regen_final_loss": 2.3865600436610137,
+        "completeness": 0.8571739571907053,
+        "damage": 0.02912099459917883
+      },
+      "1": {
+        "post_reset_loss": 2.291954376132371,
+        "regen_final_loss": 2.3284387354123814,
+        "completeness": 1.3087455861909454,
+        "damage": -0.1425933547638878
+      },
+      "2": {
+        "post_reset_loss": 2.2648279266706064,
+        "regen_final_loss": 2.3495157093234247,
+        "completeness": 1.1297249591557015,
+        "damage": -0.16971980422565247
+      },
+      "3": {
+        "post_reset_loss": 2.267773616048345,
+        "regen_final_loss": 2.3759666311256282,
+        "completeness": 0.8936103314569341,
+        "damage": -0.16677411484791405
+      }
+    }
+  },
+  {
+    "seed": 65,
+    "pre_reset_loss": 2.271631839892259,
+    "control_final_loss": 2.582527074899134,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.344266290253002,
+        "regen_final_loss": 2.634036159566737,
+        "completeness": 0.6947054329352809,
+        "damage": 0.07263445036074279
+      },
+      "1": {
+        "post_reset_loss": 2.327241104741838,
+        "regen_final_loss": 2.5779805061395034,
+        "completeness": 1.0147250797028102,
+        "damage": 0.055609264849579176
+      },
+      "2": {
+        "post_reset_loss": 2.2659947500078093,
+        "regen_final_loss": 2.5675496724306384,
+        "completeness": 1.0609674197459662,
+        "damage": -0.005637089884449775
+      },
+      "3": {
+        "post_reset_loss": 2.2627959355222194,
+        "regen_final_loss": 2.522586013033208,
+        "completeness": 1.2302288188216264,
+        "damage": -0.008835904370039671
+      }
+    }
+  },
+  {
+    "seed": 66,
+    "pre_reset_loss": 2.9836444407813736,
+    "control_final_loss": 2.288509501674032,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.3812162599660534,
+        "regen_final_loss": 2.299269615856988,
+        "completeness": 0.9294001834492984,
+        "damage": -0.6024281808153202
+      },
+      "1": {
+        "post_reset_loss": 2.3371469386525665,
+        "regen_final_loss": 2.3115066653520535,
+        "completeness": 0.6712735775182739,
+        "damage": -0.6464975021288071
+      },
+      "2": {
+        "post_reset_loss": 2.3396624229045657,
+        "regen_final_loss": 2.303558458535821,
+        "completeness": 1.0,
+        "damage": -0.6439820178768079
+      },
+      "3": {
+        "post_reset_loss": 2.3647180793168165,
+        "regen_final_loss": 2.3118143787893644,
+        "completeness": 0.46707683452860227,
+        "damage": -0.618926361464557
+      }
+    }
+  },
+  {
+    "seed": 67,
+    "pre_reset_loss": 2.550096518662324,
+    "control_final_loss": 2.5023675582860223,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.655705662750692,
+        "regen_final_loss": 2.5352666775112396,
+        "completeness": 0.9651347387694197,
+        "damage": 0.10560914408836775
+      },
+      "1": {
+        "post_reset_loss": 2.4923591673969185,
+        "regen_final_loss": 2.531496361738075,
+        "completeness": 0.9711384954109586,
+        "damage": -0.05773735126540558
+      },
+      "2": {
+        "post_reset_loss": 2.595183832051016,
+        "regen_final_loss": 2.5130928349805344,
+        "completeness": 0.9898983702824063,
+        "damage": 0.045087313388691985
+      },
+      "3": {
+        "post_reset_loss": 2.63775076270354,
+        "regen_final_loss": 2.507353855024176,
+        "completeness": 0.9956529662979301,
+        "damage": 0.0876542440412158
+      }
+    }
+  },
+  {
+    "seed": 68,
+    "pre_reset_loss": 3.0903712092452738,
+    "control_final_loss": 2.399239916050727,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.6680182726398636,
+        "regen_final_loss": 2.391560957529214,
+        "completeness": 1.0179656535571302,
+        "damage": -0.4223529366054102
+      },
+      "1": {
+        "post_reset_loss": 2.688448002924709,
+        "regen_final_loss": 2.415502730623361,
+        "completeness": 0.9670153728813531,
+        "damage": -0.40192320632056466
+      },
+      "2": {
+        "post_reset_loss": 2.645836466166057,
+        "regen_final_loss": 2.3632754935084397,
+        "completeness": 1.0860316872236564,
+        "damage": -0.4445347430792168
+      },
+      "3": {
+        "post_reset_loss": 2.7233635668217473,
+        "regen_final_loss": 2.354412667778432,
+        "completeness": 1.1015740273693866,
+        "damage": -0.36700764242352646
+      }
+    }
+  },
+  {
+    "seed": 69,
+    "pre_reset_loss": 2.405987427764603,
+    "control_final_loss": 2.486278229948764,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.172807918654269,
+        "regen_final_loss": 2.48119910528367,
+        "completeness": 1.0323728268719572,
+        "damage": -0.23317950911033414
+      },
+      "1": {
+        "post_reset_loss": 2.15905119677615,
+        "regen_final_loss": 2.4885712891313676,
+        "completeness": 0.9843801835796686,
+        "damage": -0.24693623098845308
+      },
+      "2": {
+        "post_reset_loss": 2.1529856142604538,
+        "regen_final_loss": 2.5041449044021444,
+        "completeness": 0.8696243073600658,
+        "damage": -0.2530018135041492
+      },
+      "3": {
+        "post_reset_loss": 2.2141417584130676,
+        "regen_final_loss": 2.495811210637453,
+        "completeness": 0.9239910328780356,
+        "damage": -0.19184566935153535
+      }
+    }
+  },
+  {
+    "seed": 70,
+    "pre_reset_loss": 3.0039897735738172,
+    "control_final_loss": 2.0783496112122175,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.4598502843651184,
+        "regen_final_loss": 2.0599142032503237,
+        "completeness": 1.0364158836053787,
+        "damage": -0.5441394892086988
+      },
+      "1": {
+        "post_reset_loss": 2.422536206103806,
+        "regen_final_loss": 2.0527365688836663,
+        "completeness": 1.069798837335874,
+        "damage": -0.5814535674700112
+      },
+      "2": {
+        "post_reset_loss": 2.411921807367162,
+        "regen_final_loss": 2.0585823988244774,
+        "completeness": 1.0508684431941429,
+        "damage": -0.5920679662066552
+      },
+      "3": {
+        "post_reset_loss": 2.3886122506429133,
+        "regen_final_loss": 2.064838357547017,
+        "completeness": 1.034536023912008,
+        "damage": -0.615377522930904
+      }
+    }
+  },
+  {
+    "seed": 71,
+    "pre_reset_loss": 2.423218069654731,
+    "control_final_loss": 2.1672123268036176,
+    "layers": {
+      "0": {
+        "post_reset_loss": 2.746054145811082,
+        "regen_final_loss": 2.182063257525273,
+        "completeness": 0.9702433296172395,
+        "damage": 0.3228360761563507
+      },
+      "1": {
+        "post_reset_loss": 2.7393691926628496,
+        "regen_final_loss": 2.1932129170869916,
+        "completeness": 0.9432713652915413,
+        "damage": 0.31615112300811843
+      },
+      "2": {
+        "post_reset_loss": 2.787131947317181,
+        "regen_final_loss": 2.1926228117145974,
+        "completeness": 0.9474831959535855,
+        "damage": 0.36391387766245
+      },
+      "3": {
+        "post_reset_loss": 2.8238482278197035,
+        "regen_final_loss": 2.1916463769993846,
+        "completeness": 0.9443097397406219,
+        "damage": 0.40063015816497227
+      }
+    }
+  }
+]

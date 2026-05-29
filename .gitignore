@@ -245,7 +245,8 @@ __marimo__/
 
 .env
 data/
-results/
+results/*
+!results/*.json
 output/
 docs/PAPER.pdf
 

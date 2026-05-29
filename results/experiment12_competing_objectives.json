@@ -1,0 +1,272 @@
+[
+  {
+    "seed": 42,
+    "control_final_loss": 2.590367455300213,
+    "phase1_final_loss": 3.038757760157547,
+    "competing_final_loss": 3.2075729954258883,
+    "freeze_final_loss": 2.5906187943386407,
+    "compete_vs_control": 23.826949294888493,
+    "freeze_vs_control": 0.009702833391968585
+  },
+  {
+    "seed": 43,
+    "control_final_loss": 1.9551980775181164,
+    "phase1_final_loss": 2.514247177667882,
+    "competing_final_loss": 2.0722464794598268,
+    "freeze_final_loss": 1.940968687395008,
+    "compete_vs_control": 5.986523988929497,
+    "freeze_vs_control": -0.727772305360016
+  },
+  {
+    "seed": 44,
+    "control_final_loss": 3.163572375377203,
+    "phase1_final_loss": 2.3740804359906464,
+    "competing_final_loss": 3.177368186543973,
+    "freeze_final_loss": 3.156978248629458,
+    "compete_vs_control": 0.436083311200531,
+    "freeze_vs_control": -0.20843925680564573
+  },
+  {
+    "seed": 45,
+    "control_final_loss": 2.3064518916117045,
+    "phase1_final_loss": 2.534229726102303,
+    "competing_final_loss": 2.4032254498983834,
+    "freeze_final_loss": 2.2658395049963476,
+    "compete_vs_control": 4.195776145976987,
+    "freeze_vs_control": -1.7608165495694674
+  },
+  {
+    "seed": 46,
+    "control_final_loss": 3.0520833877564124,
+    "phase1_final_loss": 2.2224234531348697,
+    "competing_final_loss": 4.413488463075972,
+    "freeze_final_loss": 3.1036511253282746,
+    "compete_vs_control": 44.60576276457274,
+    "freeze_vs_control": 1.6895913715440662
+  },
+  {
+    "seed": 47,
+    "control_final_loss": 2.5540828125430486,
+    "phase1_final_loss": 2.4564763475635853,
+    "competing_final_loss": 2.39150084295083,
+    "freeze_final_loss": 2.517538895399911,
+    "compete_vs_control": -6.365571577937161,
+    "freeze_vs_control": -1.4308039255293914
+  },
+  {
+    "seed": 48,
+    "control_final_loss": 2.2676686653957385,
+    "phase1_final_loss": 2.3735114218343933,
+    "competing_final_loss": 2.20689454025671,
+    "freeze_final_loss": 2.214456104528749,
+    "compete_vs_control": -2.6800266752560367,
+    "freeze_vs_control": -2.346575656267811
+  },
+  {
+    "seed": 49,
+    "control_final_loss": 2.623956472148999,
+    "phase1_final_loss": 2.84894203372318,
+    "competing_final_loss": 3.182179976113534,
+    "freeze_final_loss": 2.5920570531565197,
+    "compete_vs_control": 21.274114486638354,
+    "freeze_vs_control": -1.2156992439113952
+  },
+  {
+    "seed": 50,
+    "control_final_loss": 2.7166910874740324,
+    "phase1_final_loss": 2.8534453909967135,
+    "competing_final_loss": 5.238670810521538,
+    "freeze_final_loss": 2.7273702268463893,
+    "compete_vs_control": 92.83277493991527,
+    "freeze_vs_control": 0.3930936211921794
+  },
+  {
+    "seed": 51,
+    "control_final_loss": 2.765698051643464,
+    "phase1_final_loss": 2.5302097411861935,
+    "competing_final_loss": 2.9542442899923835,
+    "freeze_final_loss": 2.795854104474716,
+    "compete_vs_control": 6.817311030641227,
+    "freeze_vs_control": 1.0903595500359122
+  },
+  {
+    "seed": 52,
+    "control_final_loss": 2.1026806880315374,
+    "phase1_final_loss": 2.4709310804325253,
+    "competing_final_loss": 2.1325239286330366,
+    "freeze_final_loss": 2.1431046123343065,
+    "compete_vs_control": 1.4192949396152736,
+    "freeze_vs_control": 1.9224946770502123
+  },
+  {
+    "seed": 53,
+    "control_final_loss": 2.2400440902591647,
+    "phase1_final_loss": 2.144246480070316,
+    "competing_final_loss": 2.2059207340569027,
+    "freeze_final_loss": 2.226662731349536,
+    "compete_vs_control": -1.5233341321560365,
+    "freeze_vs_control": -0.597370336049072
+  },
+  {
+    "seed": 54,
+    "control_final_loss": 2.739551267425953,
+    "phase1_final_loss": 2.009284240299337,
+    "competing_final_loss": 3.5591402145201174,
+    "freeze_final_loss": 2.7785760722247868,
+    "compete_vs_control": 29.916904890202677,
+    "freeze_vs_control": 1.424496240053976
+  },
+  {
+    "seed": 55,
+    "control_final_loss": 3.208840501297455,
+    "phase1_final_loss": 2.679389850688581,
+    "competing_final_loss": 5.169185465533634,
+    "freeze_final_loss": 3.2156025434608413,
+    "compete_vs_control": 61.092003901207846,
+    "freeze_vs_control": 0.21073163844236337
+  },
+  {
+    "seed": 56,
+    "control_final_loss": 2.32171932091696,
+    "phase1_final_loss": 2.503082097476412,
+    "competing_final_loss": 2.493156047077675,
+    "freeze_final_loss": 2.3172087999216795,
+    "compete_vs_control": 7.384041844171168,
+    "freeze_vs_control": -0.19427503379258879
+  },
+  {
+    "seed": 57,
+    "control_final_loss": 1.862392650108083,
+    "phase1_final_loss": 2.4116471556249586,
+    "competing_final_loss": 2.0748340991926333,
+    "freeze_final_loss": 1.8798248493512963,
+    "compete_vs_control": 11.40690976589826,
+    "freeze_vs_control": 0.9360109557026928
+  },
+  {
+    "seed": 58,
+    "control_final_loss": 2.7056755227849827,
+    "phase1_final_loss": 2.1784346244922412,
+    "competing_final_loss": 3.2156353077734585,
+    "freeze_final_loss": 2.6923820422067575,
+    "compete_vs_control": 18.847780552176797,
+    "freeze_vs_control": -0.4913183589931021
+  },
+  {
+    "seed": 59,
+    "control_final_loss": 2.0811019656616394,
+    "phase1_final_loss": 2.4665565394789706,
+    "competing_final_loss": 5.696476879370633,
+    "freeze_final_loss": 2.0915126655889074,
+    "compete_vs_control": 173.72406414308327,
+    "freeze_vs_control": 0.5002493918628396
+  },
+  {
+    "seed": 60,
+    "control_final_loss": 2.3977558175068645,
+    "phase1_final_loss": 3.0972658635092527,
+    "competing_final_loss": 2.4845373811974714,
+    "freeze_final_loss": 2.364725862865466,
+    "compete_vs_control": 3.6192827917248254,
+    "freeze_vs_control": -1.3775362111619105
+  },
+  {
+    "seed": 61,
+    "control_final_loss": 2.658141652073655,
+    "phase1_final_loss": 2.9002281060438406,
+    "competing_final_loss": 3.2232669232630067,
+    "freeze_final_loss": 2.6703209416874096,
+    "compete_vs_control": 21.260163872323698,
+    "freeze_vs_control": 0.4581881332115327
+  },
+  {
+    "seed": 62,
+    "control_final_loss": 1.9513393593977286,
+    "phase1_final_loss": 2.2586427105737297,
+    "competing_final_loss": 2.596878214099686,
+    "freeze_final_loss": 1.9482833011938572,
+    "compete_vs_control": 33.08183436125636,
+    "freeze_vs_control": -0.15661336349074031
+  },
+  {
+    "seed": 63,
+    "control_final_loss": 2.5720438073494134,
+    "phase1_final_loss": 3.393909593958057,
+    "competing_final_loss": 3.186698273541463,
+    "freeze_final_loss": 2.5981492990400743,
+    "compete_vs_control": 23.897511560095623,
+    "freeze_vs_control": 1.0149707254622375
+  },
+  {
+    "seed": 64,
+    "control_final_loss": 2.3668485594524675,
+    "phase1_final_loss": 2.434547730896259,
+    "competing_final_loss": 2.579363906121419,
+    "freeze_final_loss": 2.36337624027572,
+    "compete_vs_control": 8.978831612197173,
+    "freeze_vs_control": -0.14670643640803463
+  },
+  {
+    "seed": 65,
+    "control_final_loss": 2.582527074899134,
+    "phase1_final_loss": 2.271631839892259,
+    "competing_final_loss": 4.907260137421384,
+    "freeze_final_loss": 2.644013144939539,
+    "compete_vs_control": 90.0177614832188,
+    "freeze_vs_control": 2.380849000113847
+  },
+  {
+    "seed": 66,
+    "control_final_loss": 2.288509501674032,
+    "phase1_final_loss": 2.9836444407813736,
+    "competing_final_loss": 2.718346983732041,
+    "freeze_final_loss": 2.2967314045771543,
+    "compete_vs_control": 18.782420686634048,
+    "freeze_vs_control": 0.3592688995657665
+  },
+  {
+    "seed": 67,
+    "control_final_loss": 2.5023675582860223,
+    "phase1_final_loss": 2.550096518662324,
+    "competing_final_loss": 2.725016776065308,
+    "freeze_final_loss": 2.4985982054031073,
+    "compete_vs_control": 8.897542530953674,
+    "freeze_vs_control": -0.1506314638084907
+  },
+  {
+    "seed": 68,
+    "control_final_loss": 2.399239916050727,
+    "phase1_final_loss": 3.0903712092452738,
+    "competing_final_loss": 2.5469600039284868,
+    "freeze_final_loss": 2.3929234620849424,
+    "compete_vs_control": 6.156953578903219,
+    "freeze_vs_control": -0.2632689596204167
+  },
+  {
+    "seed": 69,
+    "control_final_loss": 2.486278229948764,
+    "phase1_final_loss": 2.405987427764603,
+    "competing_final_loss": 2.660768828483969,
+    "freeze_final_loss": 2.50379954171504,
+    "compete_vs_control": 7.018144487344878,
+    "freeze_vs_control": 0.7047204755775412
+  },
+  {
+    "seed": 70,
+    "control_final_loss": 2.0783496112122175,
+    "phase1_final_loss": 3.0039897735738172,
+    "competing_final_loss": 2.1895208431978324,
+    "freeze_final_loss": 2.107418345228373,
+    "compete_vs_control": 5.349014977358556,
+    "freeze_vs_control": 1.3986450527541845
+  },
+  {
+    "seed": 71,
+    "control_final_loss": 2.1672123268036176,
+    "phase1_final_loss": 2.423218069654731,
+    "competing_final_loss": 2.384733160811136,
+    "freeze_final_loss": 2.18114930303142,
+    "compete_vs_control": 10.036895384788444,
+    "freeze_vs_control": 0.643083100600379
+  }
+]

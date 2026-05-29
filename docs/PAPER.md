@@ -766,6 +766,8 @@ Belinkov, Y., & Glass, J. (2019). Analysis methods in neural language processing
 
 Bengio, Y., Lamblin, P., Popovici, D., & Larochelle, H. (2007). Greedy layer-wise training of deep networks. *Advances in Neural Information Processing Systems*, 19.
 
+Bengio, Y., Louradour, J., Collobert, R., & Weston, J. (2009). Curriculum learning. In *Proceedings of the 26th International Conference on Machine Learning (ICML)*, 41--48.
+
 Bernstein, J., Wang, Y.-X., Adams, R. P., & Kolter, J. Z. (2018). signSGD: Compressed optimisation for non-convex problems. *Proceedings of the 35th International Conference on Machine Learning*.
 
 Elhage, N., Nanda, N., Olsson, C., Henighan, T., Joseph, N., Mann, B., ... & Olah, C. (2021). A mathematical framework for transformer circuits. *Transformer Circuits Thread*.
@@ -779,6 +781,8 @@ Kofman, D., Campitelli, G., & Levin, M. (2025). Chess as a model of collective i
 Levin, M. (2026). A short argument on Platonic Space: variable-agency patterns that in-form physics, biology, computer science, and cognitive science. Blog post, March 31, 2026.
 
 Levin, M., Bongard, J., & Bhatt, R. (2024). Morphogenetic competencies of sorting algorithms: Delayed gratification, chimeras, and cell-level agency in non-biological systems. *arXiv preprint*.
+
+Meichenbaum, D. (1985). *Stress Inoculation Training*. New York: Pergamon Press.
 
 Meyes, R., Lu, M., de Puiseau, C. W., & Meisen, T. (2019). Ablation studies in artificial neural networks. *arXiv preprint arXiv:1901.08644*.
 

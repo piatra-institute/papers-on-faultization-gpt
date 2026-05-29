@@ -6,7 +6,7 @@ created: "2026-03"        # inception month (drives YYYY/MM archive path)
 date: "March 2026"            # publication month (shown on web)
 paper_dir: docs
 has_simulation: true
-claims_target: none      # results.json | claim-ledger | none
+claims_target: claim-ledger      # results.json | claim-ledger | none
 repo: git@github.com:piatra-institute/papers-on-faultization-gpt.git
 github: https://github.com/piatra-institute/papers-on-faultization-gpt
 status: published              # draft | built | published

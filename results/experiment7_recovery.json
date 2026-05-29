@@ -1,0 +1,302 @@
+[
+  {
+    "seed": 42,
+    "recovery_final_loss": 2.2869996743013172,
+    "control_final_loss": 2.282600339583924,
+    "pre_damage_loss": 3.0884427024373777,
+    "recovery_time": 1,
+    "overshoot": -0.003194330269775984,
+    "max_overshoot": 0.08971458402222243,
+    "final_ratio": 1.0019273346459745
+  },
+  {
+    "seed": 43,
+    "recovery_final_loss": 2.358724084385653,
+    "control_final_loss": 2.3580509945143877,
+    "pre_damage_loss": 2.5420792139018293,
+    "recovery_time": 0,
+    "overshoot": -0.0012563461997424851,
+    "max_overshoot": 0.08518039608932249,
+    "final_ratio": 1.000285443305862
+  },
+  {
+    "seed": 44,
+    "recovery_final_loss": 2.4947482863124666,
+    "control_final_loss": 2.4708768241088728,
+    "pre_damage_loss": 2.3206854193333513,
+    "recovery_time": 0,
+    "overshoot": 0.00046479838843264455,
+    "max_overshoot": 0.09775663307480809,
+    "final_ratio": 1.0096611299967182
+  },
+  {
+    "seed": 45,
+    "recovery_final_loss": 1.6527501778759461,
+    "control_final_loss": 1.6525945727606628,
+    "pre_damage_loss": 2.533128584098596,
+    "recovery_time": 0,
+    "overshoot": -0.001671385116777606,
+    "max_overshoot": 0.07663213747624731,
+    "final_ratio": 1.000094158069891
+  },
+  {
+    "seed": 46,
+    "recovery_final_loss": 2.53915655948787,
+    "control_final_loss": 2.494681338500566,
+    "pre_damage_loss": 2.237164270710801,
+    "recovery_time": 1,
+    "overshoot": -0.001613393837311426,
+    "max_overshoot": 0.04695152152046056,
+    "final_ratio": 1.017828016869696
+  },
+  {
+    "seed": 47,
+    "recovery_final_loss": 3.016233997535551,
+    "control_final_loss": 3.011048753322061,
+    "pre_damage_loss": 2.475007965676509,
+    "recovery_time": 1,
+    "overshoot": 0.0011695171899837756,
+    "max_overshoot": 0.06628597154615967,
+    "final_ratio": 1.0017220724864615
+  },
+  {
+    "seed": 48,
+    "recovery_final_loss": 2.296750399744702,
+    "control_final_loss": 2.315993998984325,
+    "pre_damage_loss": 2.369311856871327,
+    "recovery_time": 1,
+    "overshoot": -0.0001614848830626011,
+    "max_overshoot": 0.07555924135952363,
+    "final_ratio": 0.9916909977970314
+  },
+  {
+    "seed": 49,
+    "recovery_final_loss": 2.0623963470383253,
+    "control_final_loss": 2.057653638342096,
+    "pre_damage_loss": 2.8620351172406,
+    "recovery_time": 0,
+    "overshoot": -0.0030643235456736264,
+    "max_overshoot": 0.051908270981144256,
+    "final_ratio": 1.0023049110928361
+  },
+  {
+    "seed": 50,
+    "recovery_final_loss": 2.2869067865999195,
+    "control_final_loss": 2.280530612570997,
+    "pre_damage_loss": 2.8808962975313923,
+    "recovery_time": 0,
+    "overshoot": -0.0018065210883666761,
+    "max_overshoot": 0.07320904849267507,
+    "final_ratio": 1.0027959168773157
+  },
+  {
+    "seed": 51,
+    "recovery_final_loss": 2.381816089312325,
+    "control_final_loss": 2.3637044120991493,
+    "pre_damage_loss": 2.4979812180542047,
+    "recovery_time": 0,
+    "overshoot": 0.00013243334956955621,
+    "max_overshoot": 0.08039016901015206,
+    "final_ratio": 1.0076624120683055
+  },
+  {
+    "seed": 52,
+    "recovery_final_loss": 3.2193734481046383,
+    "control_final_loss": 3.207667148514872,
+    "pre_damage_loss": 2.502327345945418,
+    "recovery_time": 0,
+    "overshoot": -0.0011887516959917966,
+    "max_overshoot": 0.07341174076608459,
+    "final_ratio": 1.0036494745395221
+  },
+  {
+    "seed": 53,
+    "recovery_final_loss": 2.6622148126456695,
+    "control_final_loss": 2.6357484953596293,
+    "pre_damage_loss": 2.211794213738972,
+    "recovery_time": 0,
+    "overshoot": -0.001109963517236836,
+    "max_overshoot": 0.08329404962268594,
+    "final_ratio": 1.010041290863918
+  },
+  {
+    "seed": 54,
+    "recovery_final_loss": 2.379991856452377,
+    "control_final_loss": 2.370122884452454,
+    "pre_damage_loss": 1.9908910594693556,
+    "recovery_time": 1,
+    "overshoot": -0.0038214342278573813,
+    "max_overshoot": 0.10750013434132111,
+    "final_ratio": 1.0041639073082083
+  },
+  {
+    "seed": 55,
+    "recovery_final_loss": 2.6859260224003583,
+    "control_final_loss": 2.7372045221743377,
+    "pre_damage_loss": 2.774914768331214,
+    "recovery_time": 0,
+    "overshoot": 0.0003450363070218232,
+    "max_overshoot": 0.06363968804965214,
+    "final_ratio": 0.9812661058541414
+  },
+  {
+    "seed": 56,
+    "recovery_final_loss": 2.5160726581605113,
+    "control_final_loss": 2.5081270962911923,
+    "pre_damage_loss": 2.516825092905122,
+    "recovery_time": 0,
+    "overshoot": -0.00032407556572804476,
+    "max_overshoot": 0.07589529313677712,
+    "final_ratio": 1.003167926330794
+  },
+  {
+    "seed": 57,
+    "recovery_final_loss": 2.105078636934218,
+    "control_final_loss": 2.1105035141894923,
+    "pre_damage_loss": 2.3356281838455706,
+    "recovery_time": 0,
+    "overshoot": 0.00038271983335727897,
+    "max_overshoot": 0.08489619715997598,
+    "final_ratio": 0.997429581510383
+  },
+  {
+    "seed": 58,
+    "recovery_final_loss": 2.1148551105095303,
+    "control_final_loss": 2.1190782674063544,
+    "pre_damage_loss": 2.212852296772598,
+    "recovery_time": 3,
+    "overshoot": -0.002179195404845644,
+    "max_overshoot": 0.040379599844913905,
+    "final_ratio": 0.998007078378472
+  },
+  {
+    "seed": 59,
+    "recovery_final_loss": 2.406229346882246,
+    "control_final_loss": 2.42081526678173,
+    "pre_damage_loss": 2.482187869504189,
+    "recovery_time": 0,
+    "overshoot": 0.00032066856655258325,
+    "max_overshoot": 0.0629671302517747,
+    "final_ratio": 0.993974790187574
+  },
+  {
+    "seed": 60,
+    "recovery_final_loss": 3.2889324209465842,
+    "control_final_loss": 3.3386086492968507,
+    "pre_damage_loss": 3.0995063750914427,
+    "recovery_time": 1,
+    "overshoot": -0.0009949128697154873,
+    "max_overshoot": 0.06203966882927592,
+    "final_ratio": 0.9851206794301186
+  },
+  {
+    "seed": 61,
+    "recovery_final_loss": 2.654076990333637,
+    "control_final_loss": 2.665308431160825,
+    "pre_damage_loss": 3.0374896542915906,
+    "recovery_time": 0,
+    "overshoot": -0.00016569661328731943,
+    "max_overshoot": 0.07889994436793302,
+    "final_ratio": 0.9957860633704235
+  },
+  {
+    "seed": 62,
+    "recovery_final_loss": 2.5966158016175105,
+    "control_final_loss": 2.6318667142253607,
+    "pre_damage_loss": 2.256921353523027,
+    "recovery_time": 0,
+    "overshoot": -0.0002355947198105557,
+    "max_overshoot": 0.06340331613189631,
+    "final_ratio": 0.9866061178488571
+  },
+  {
+    "seed": 63,
+    "recovery_final_loss": 2.027395944629221,
+    "control_final_loss": 2.021875186286065,
+    "pre_damage_loss": 3.3428604503587875,
+    "recovery_time": 2,
+    "overshoot": -0.002107045393414546,
+    "max_overshoot": 0.09899163098344044,
+    "final_ratio": 1.0027305139212361
+  },
+  {
+    "seed": 64,
+    "recovery_final_loss": 2.756266971707072,
+    "control_final_loss": 2.772354007727596,
+    "pre_damage_loss": 2.421641065204252,
+    "recovery_time": 5,
+    "overshoot": -0.0005743837646761779,
+    "max_overshoot": 0.06840582309548626,
+    "final_ratio": 0.9941973370010888
+  },
+  {
+    "seed": 65,
+    "recovery_final_loss": 2.480435210988793,
+    "control_final_loss": 2.5025289250559313,
+    "pre_damage_loss": 2.289770158847771,
+    "recovery_time": 0,
+    "overshoot": 0.0002685412167719636,
+    "max_overshoot": 0.0961796431028441,
+    "final_ratio": 0.991171445074648
+  },
+  {
+    "seed": 66,
+    "recovery_final_loss": 1.877249140143498,
+    "control_final_loss": 1.8734454244330634,
+    "pre_damage_loss": 3.0029117842757986,
+    "recovery_time": 3,
+    "overshoot": -0.0036520153424303334,
+    "max_overshoot": 0.11887459901719,
+    "final_ratio": 1.0020303317410946
+  },
+  {
+    "seed": 67,
+    "recovery_final_loss": 2.031355657866905,
+    "control_final_loss": 2.0240848312588327,
+    "pre_damage_loss": 2.5695064122908566,
+    "recovery_time": 2,
+    "overshoot": -0.0018636298236784125,
+    "max_overshoot": 0.0632641709586883,
+    "final_ratio": 1.0035921550795628
+  },
+  {
+    "seed": 68,
+    "recovery_final_loss": 2.889315215774365,
+    "control_final_loss": 2.9005769884584716,
+    "pre_damage_loss": 3.1153527273650368,
+    "recovery_time": 5,
+    "overshoot": -0.002761959854931694,
+    "max_overshoot": 0.053922062976509366,
+    "final_ratio": 0.9961174025964773
+  },
+  {
+    "seed": 69,
+    "recovery_final_loss": 2.61528053791015,
+    "control_final_loss": 2.5804576387600284,
+    "pre_damage_loss": 2.344343370237453,
+    "recovery_time": 0,
+    "overshoot": -0.0028656984722442136,
+    "max_overshoot": 0.0483841975115995,
+    "final_ratio": 1.0134948540239765
+  },
+  {
+    "seed": 70,
+    "recovery_final_loss": 2.5996029029485523,
+    "control_final_loss": 2.5869577354177395,
+    "pre_damage_loss": 2.8455169296165472,
+    "recovery_time": 0,
+    "overshoot": -0.004682671429576117,
+    "max_overshoot": 0.05115267505803178,
+    "final_ratio": 1.0048880456598457
+  },
+  {
+    "seed": 71,
+    "recovery_final_loss": 2.23269695984946,
+    "control_final_loss": 2.2373936014001186,
+    "pre_damage_loss": 2.482980355453926,
+    "recovery_time": 1,
+    "overshoot": -0.0023843301249494896,
+    "max_overshoot": 0.07977532947763288,
+    "final_ratio": 0.9979008425036527
+  }
+]
