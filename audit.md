@@ -30,3 +30,23 @@ committed.
 
 Verification: voice 0 errors; refs OK; claims => claim-ledger present (n=30 rows
 verified); build clean; check => PASS.
+
+## 2026-05-29 (later) — n=300 regenerated + reconciled
+
+Ran `run.py n300` (all 12, ~2.5h). Findings:
+- Reproduces the paper exactly: competing +26.3%/d=0.531, freeze final-loss all
+  p>0.15 + Spearman ρ=−0.0045, recovery ratio 1.0009.
+- **Drift on the abstract headline**: gradual-vs-sudden d reproduced as −0.374,
+  not the reported −0.227 (same direction/significance, stronger). Per the
+  user's call (regeneration is canonical), updated all 8 occurrences in the prose
+  −0.227 → −0.374, including the abstract.
+- Raw n=300 trajectory JSONs are 150–200 MB each (exceed GitHub's limit) — they
+  are gitignored; committed `results/n300_analysis.txt` (8 KB) as the trace.
+- Ledger n=300 rows 14–17 flipped to verified.
+
+Outstanding (flagged in CLAIM_LEDGER.md): exp 6 courage/caution effect sizes also
+drifted (have the reproduced values); exp 1 freeze-trajectory d's aren't emitted
+by the n=300 analysis script and weren't re-verified. A focused per-figure pass
+would close these.
+
+Verification: build clean (34pp); voice 0; refs OK; check => PASS.

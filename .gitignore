@@ -247,6 +247,8 @@ __marimo__/
 data/
 results/*
 !results/*.json
+results/*_n300.json
+!results/n300_analysis.txt
 output/
 docs/PAPER.pdf
 

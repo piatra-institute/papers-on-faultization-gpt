@@ -32,15 +32,28 @@ GPT; 200 steps; paired t-tests, runs matched by seed.
 | 12 | Competing objectives: adversarial +24.8% vs freeze +0.2% | `experiment12_competing_objectives.json` | competing p<0.001 d=+0.689; freeze p=0.462 | [x] |
 | 13 | DG index null at n=30 (no perturbation response) | all experiments | p>0.19 all | [x] |
 
-## n = 300 (regenerate with `uv run run.py n300`; deterministic, ~hours)
+## n = 300 (regenerated 2026-05-29)
 
-These are the "10× power" confirmations the paper reports "at n=300", including
-the abstract's headline gradual-vs-sudden figure. Pending regeneration of the
-`*_n300.json` artifacts.
+Regenerated all 12 experiments at n=300 with `uv run run.py n300`. The raw
+trajectory JSONs are large (150–200 MB each) and exceed GitHub's file limit, so
+they are gitignored; the committed trace is `results/n300_analysis.txt` (the full
+paired-t-test output) and the verified values below. Regenerate any time with the
+command above (seeded, deterministic).
+
+Most n=300 figures reproduce the paper exactly; the gradual-vs-sudden effect size
+drifted from an earlier run and the prose was updated to the reproduced value
+(stronger). Two further drifts are flagged for a follow-up reconciliation.
 
 | # | Claim (n=300) | Source | Value | ✓ |
 |---|---|---|---|---|
-| 14 | Gradual-vs-sudden strengthens at n=300 | `experiment9_gradual_vs_sudden_n300.json` | p=0.0001, d=−0.227 | [ ] |
-| 15 | Competing objectives at n=300 | `experiment12_competing_objectives_n300.json` | +26.3%, p<0.0001, d=+0.531 | [ ] |
-| 16 | Head-freezing trajectory at n=300 | `experiment1_head_freezing_n300.json` | freeze 12 d=−1.421 (p<0.0001) | [ ] |
-| 17 | Final-loss freezing effects vanish at n=300 | `experiment1_head_freezing_n300.json` | all p>0.15, Spearman ρ=−0.0045 | [ ] |
+| 14 | Gradual-vs-sudden, paired | `experiment9_gradual_vs_sudden_n300.json` | p<0.0001, **d=−0.374** (paper updated from the earlier −0.227) | [x] |
+| 15 | Competing objectives | `experiment12_competing_objectives_n300.json` | +26.3%, p<0.0001, d=+0.531 — reproduced exactly | [x] |
+| 16 | Final-loss freezing effects vanish | `experiment1_head_freezing_n300.json` | all p>0.15, Spearman ρ=−0.0045 — reproduced exactly | [x] |
+| 17 | Recovery near-complete | `experiment7_recovery_n300.json` | ratio 1.0009 — reproduced exactly | [x] |
+
+Follow-up reconciliation (prose still shows the earlier run's figures):
+- Exp 6 courage/caution effect sizes drifted (e.g. cautious_cautious +5.2%/d=0.624
+  → reproduced +5.0%/d=0.572; courageous_cautious d=0.616 → 0.549).
+- Exp 1 freeze-*trajectory* (mean-loss) d's (−0.971/−1.245/−1.421/−1.312) are not
+  emitted by the n=300 analysis script and were not re-verified this pass; the
+  final-loss + Spearman results (row 16) are verified.
